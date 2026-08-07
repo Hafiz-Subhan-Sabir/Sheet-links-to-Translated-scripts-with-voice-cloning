@@ -80,8 +80,8 @@ export default function Dashboard() {
   const nextAction = useMemo(() => {
     if (!connected) {
       return {
-        label: "Next",
-        title: "Connect Google to unlock Sheets & Docs",
+        label: "Next step",
+        title: "Connect your Google account so we can use Sheets and Docs",
         cta: "Connect Google",
         onClick: () => {
           window.location.href = api.googleAuthUrl();
@@ -90,31 +90,31 @@ export default function Dashboard() {
     }
     if (!sheetsReady) {
       return {
-        label: "Next",
-        title: "Unlock admin and paste input + output sheet links",
+        label: "Next step",
+        title: "Open “Your Google Sheets” below, unlock, and paste both spreadsheet links",
         cta: null as string | null,
         onClick: null as (() => void) | null,
       };
     }
     if (tab === "setup") {
       return {
-        label: "Ready",
-        title: "Sheets linked — start processing videos",
-        cta: "Start Run",
+        label: "You’re set",
+        title: "Everything’s linked — start processing your videos",
+        cta: "Start processing",
         onClick: () => selectTab("transcribe"),
       };
     }
     if (tab === "transcribe") {
       return {
-        label: "After run",
-        title: "When transcripts finish, clone voices or mark done",
-        cta: "Open Voice",
+        label: "What’s next",
+        title: "When processing finishes, clone voices or mark items done",
+        cta: "Go to Voice",
         onClick: () => selectTab("voice"),
       };
     }
     return {
-      label: "Done",
-      title: "Pick a voice, select rows, clone — or mark done",
+      label: "Finish up",
+      title: "Choose a voice, pick transcripts, then clone — or mark them done",
       cta: null,
       onClick: null,
     };
@@ -188,19 +188,29 @@ export default function Dashboard() {
                     2-minute setup
                   </p>
                   <h2 className="hero-blurb">
-                    Connect once.
+                    Sign in once.
                     <br />
-                    Drop sheet links.
+                    Add your sheets.
                     <br />
-                    <span style={{ color: "var(--coral)" }}>Hit run.</span>
+                    <span style={{ color: "var(--coral)" }}>Start processing.</span>
                   </h2>
                 </div>
 
                 <ol className="space-y-2">
                   {[
-                    { n: "1", ok: connected, t: "Google", d: email || "Connect your account" },
-                    { n: "2", ok: sheetConfigured, t: "Input sheet", d: "Video links queue" },
-                    { n: "3", ok: outputConfigured, t: "Output sheet", d: "Transcripts & voice notes" },
+                    { n: "1", ok: connected, t: "Google account", d: email || "Not connected yet" },
+                    {
+                      n: "2",
+                      ok: sheetConfigured,
+                      t: "Video list sheet",
+                      d: "Where your video links live",
+                    },
+                    {
+                      n: "3",
+                      ok: outputConfigured,
+                      t: "Results sheet",
+                      d: "Where transcripts get saved",
+                    },
                   ].map((s) => (
                     <li key={s.n} className="checklist-item">
                       <span
@@ -230,6 +240,7 @@ export default function Dashboard() {
               </section>
 
               <AdminSection
+                defaultOpen={!sheetsReady}
                 onSaved={() => {
                   refreshAuth();
                   setUserPickedTab(false);

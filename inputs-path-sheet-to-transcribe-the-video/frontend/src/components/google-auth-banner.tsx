@@ -51,7 +51,7 @@ export function GoogleAuthBanner({
           <Zap className="h-5 w-5" />
         </div>
         <h3 className="text-lg font-extrabold tracking-tight">Connect Google</h3>
-        <p className="mt-1 text-sm text-muted-foreground">One click. Sheets + Docs access.</p>
+        <p className="mt-1 text-sm text-muted-foreground">One click for Sheets and Docs access.</p>
         <Button onClick={handleConnect} size="lg" className="mt-4 w-full">
           Continue with Google
         </Button>
@@ -77,7 +77,7 @@ export function GoogleAuthBanner({
             )}
           </p>
         ) : (
-          <p className="mt-1 text-xs text-muted-foreground">Add sheet links →</p>
+          <p className="mt-1 text-xs text-muted-foreground">Open “Your Google Sheets” to finish setup</p>
         )}
       </div>
       <Button variant="outline" size="sm" onClick={handleDisconnect}>
