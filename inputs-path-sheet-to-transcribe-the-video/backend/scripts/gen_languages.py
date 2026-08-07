@@ -1,0 +1,212 @@
+"""Generate frontend/src/lib/languages.ts with 200+ language options."""
+import json
+from pathlib import Path
+
+from deep_translator import GoogleTranslator
+
+gt = GoogleTranslator().get_supported_languages(as_dict=True)
+by_code = {v: k.title() for k, v in gt.items()}
+
+extras = {
+    "auto": "Auto-detect",
+    "zh-CN": "Chinese (Simplified)",
+    "zh-TW": "Chinese (Traditional)",
+    "pt-BR": "Portuguese (Brazil)",
+    "pt-PT": "Portuguese (Portugal)",
+    "en-US": "English (US)",
+    "en-GB": "English (UK)",
+    "es-419": "Spanish (Latin America)",
+    "fr-CA": "French (Canada)",
+    "sr-Latn": "Serbian (Latin)",
+    "sr-Cyrl": "Serbian (Cyrillic)",
+    "fil": "Filipino",
+    "haw": "Hawaiian",
+    "hmn": "Hmong",
+    "ceb": "Cebuano",
+    "ckb": "Central Kurdish",
+    "dsb": "Lower Sorbian",
+    "hsb": "Upper Sorbian",
+    "yue": "Cantonese",
+    "nan": "Min Nan Chinese",
+    "wuu": "Wu Chinese",
+    "cmn": "Mandarin Chinese",
+    "prs": "Dari",
+    "zsm": "Standard Malay",
+    "sh": "Serbo-Croatian",
+    "tl": "Tagalog",
+    "nb": "Norwegian Bokmål",
+    "nn": "Norwegian Nynorsk",
+    "gsw": "Swiss German",
+    "lb": "Luxembourgish",
+    "fo": "Faroese",
+    "fy": "Western Frisian",
+    "gd": "Scottish Gaelic",
+    "gv": "Manx",
+    "kw": "Cornish",
+    "br": "Breton",
+    "oc": "Occitan",
+    "co": "Corsican",
+    "sc": "Sardinian",
+    "wa": "Walloon",
+    "li": "Limburgish",
+    "rm": "Romansh",
+    "lad": "Ladino",
+    "an": "Aragonese",
+    "ast": "Asturian",
+    "mwl": "Mirandese",
+    "gl": "Galician",
+    "eu": "Basque",
+    "ca": "Catalan",
+    "cy": "Welsh",
+    "ga": "Irish",
+    "mt": "Maltese",
+    "is": "Icelandic",
+    "kl": "Greenlandic",
+    "se": "Northern Sami",
+    "bo": "Tibetan",
+    "dz": "Dzongkha",
+    "my": "Burmese",
+    "km": "Khmer",
+    "lo": "Lao",
+    "ka": "Georgian",
+    "az": "Azerbaijani",
+    "kk": "Kazakh",
+    "ky": "Kyrgyz",
+    "uz": "Uzbek",
+    "tk": "Turkmen",
+    "tg": "Tajik",
+    "mn": "Mongolian",
+    "ug": "Uyghur",
+    "tt": "Tatar",
+    "ba": "Bashkir",
+    "cv": "Chuvash",
+    "sah": "Yakut",
+    "ce": "Chechen",
+    "os": "Ossetian",
+    "ab": "Abkhaz",
+    "crh": "Crimean Tatar",
+    "krl": "Karelian",
+    "mdf": "Moksha",
+    "myv": "Erzya",
+    "udm": "Udmurt",
+    "kv": "Komi",
+    "sm": "Samoan",
+    "to": "Tongan",
+    "fj": "Fijian",
+    "ty": "Tahitian",
+    "mi": "Maori",
+    "tpi": "Tok Pisin",
+    "bi": "Bislama",
+    "tet": "Tetum",
+    "gil": "Gilbertese",
+    "na": "Nauruan",
+    "mh": "Marshallese",
+    "niu": "Niuean",
+    "rar": "Cook Islands Maori",
+    "iu": "Inuktitut",
+    "iu-Latn": "Inuktitut (Latin)",
+    "iu-Cans": "Inuktitut (Syllabics)",
+    "ber": "Berber",
+    "arc": "Aramaic",
+    "cop": "Coptic",
+    "grc": "Ancient Greek",
+    "lat": "Latin",
+    "san": "Sanskrit",
+    "pli": "Pali",
+    "sa": "Sanskrit (ISO)",
+    "pi": "Pali (ISO)",
+    "new": "Newari",
+    "bho": "Bhojpuri",
+    "mag": "Magahi",
+    "mai": "Maithili",
+    "awa": "Awadhi",
+    "raj": "Rajasthani",
+    "sat": "Santali",
+    "doi": "Dogri",
+    "kok": "Konkani",
+    "mni": "Manipuri",
+    "as": "Assamese",
+    "or": "Odia",
+    "pa": "Punjabi",
+    "gu": "Gujarati",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+    "te": "Telugu",
+    "ta": "Tamil",
+    "si": "Sinhala",
+    "ne": "Nepali",
+    "sd": "Sindhi",
+    "ps": "Pashto",
+    "ku": "Kurdish",
+    "ckb": "Kurdish (Sorani)",
+    "kmr": "Kurdish (Kurmanji)",
+    "bal": "Baluchi",
+    "brx": "Bodo",
+    "lus": "Mizo",
+    "kha": "Khasi",
+    "grt": "Garo",
+    "nag": "Naga",
+    "hoc": "Ho",
+    "kru": "Kurukh",
+    "gon": "Gondi",
+    "mni-Mtei": "Meitei (Manipuri)",
+    "bpy": "Bishnupriya Manipuri",
+    "dcc": "Deccan",
+    "bgc": "Haryanvi",
+    "hne": "Chhattisgarhi",
+    "wbr": "Wagdi",
+    "mwr": "Marwari",
+    "syl": "Sylheti",
+    "rhg": "Rohingya",
+    "shn": "Shan",
+    "kac": "Kachin",
+    "kar": "Karen",
+    "mnw": "Mon",
+    "blk": "Pa'O",
+    "kjp": "Pwo Eastern Karen",
+    "ksw": "S'gaw Karen",
+    "rki": "Rakhine",
+    "bgr": "Bawm",
+    "hak": "Hakka Chinese",
+    "gan": "Gan Chinese",
+    "cdo": "Min Dong Chinese",
+    "cjy": "Jin Chinese",
+    "czh": "Huizhou Chinese",
+    "cpx": "Pu-Xian Chinese",
+    "czo": "Min Zhong Chinese",
+    "lzh": "Literary Chinese",
+}
+
+for code, name in extras.items():
+    if code not in by_code:
+        by_code[code] = name
+
+items = [{"value": "auto", "label": "Auto-detect"}]
+items.extend(
+    sorted(
+        [{"value": c, "label": n} for c, n in by_code.items() if c != "auto"],
+        key=lambda x: x["label"].lower(),
+    )
+)
+
+out = Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "languages.ts"
+content = f"""export interface LanguageOption {{ value: string; label: string; }}
+
+/** {len(items)} languages for transcription source and translation targets */
+export const LANGUAGES: LanguageOption[] = {json.dumps(items, indent=2)};
+
+export const TARGET_LANGUAGES: LanguageOption[] = [
+  {{ value: "none", label: "No translation" }},
+  ...LANGUAGES.filter((l) => l.value !== "auto"),
+];
+
+export function searchLanguages(query: string, options: LanguageOption[]): LanguageOption[] {{
+  const q = query.trim().toLowerCase();
+  if (!q) return options;
+  return options.filter(
+    (l) => l.label.toLowerCase().includes(q) || l.value.toLowerCase().includes(q)
+  );
+}}
+"""
+out.write_text(content, encoding="utf-8")
+print(f"Wrote {len(items)} languages to {out}")
