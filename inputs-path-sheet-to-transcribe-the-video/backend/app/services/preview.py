@@ -1,6 +1,5 @@
-import yt_dlp
-
 from app.services.detect_source import validate_online_url
+from app.services.media_bins import ensure_yt_dlp
 from app.services.video import VideoError
 
 
@@ -8,6 +7,9 @@ def get_video_preview(url: str) -> dict:
     valid, msg = validate_online_url(url)
     if not valid:
         raise VideoError(msg)
+
+    ensure_yt_dlp()
+    import yt_dlp
 
     ydl_opts = {
         "quiet": True,

@@ -30,13 +30,17 @@ backend/data/config.json
 backend/data/uploads/
 backend/data/jobs.json
 
-# Large binaries
-backend/tools/ffmpeg.zip
+# Large binaries / auto-downloaded media tools
+backend/tools/
 *.mp4
 *.mkv
 *.avi
 *.mov
 *.webm
+*.mp3
+*.wav
+*.m4a
+!frontend/public/**
 
 # OS & IDE
 .DS_Store

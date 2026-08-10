@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     data_dir: str = "./data"
     admin_session_minutes: int = 15
     max_unlock_attempts: int = 5
+    unlock_window_minutes: int = 15
     worker_threads: int = 4
     prefetch_enabled: bool = True
     input_sheet_url: str = ""

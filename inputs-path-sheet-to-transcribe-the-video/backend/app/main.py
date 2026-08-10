@@ -9,8 +9,21 @@ from app.services.transcribe import schedule_whisper_preload
 from app.services.workers import submit_task
 
 
+def _bootstrap_media_bins() -> None:
+    from app.services.media_bins import ensure_media_bins
+
+    try:
+        ensure_media_bins()
+    except Exception as e:
+        # Non-fatal at startup — first download/transcribe will retry
+        import logging
+
+        logging.getLogger(__name__).warning("Media bin bootstrap deferred: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    submit_task(_bootstrap_media_bins)
     submit_task(schedule_whisper_preload)
     yield
 

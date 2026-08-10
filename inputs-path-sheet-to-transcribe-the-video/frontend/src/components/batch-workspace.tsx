@@ -120,11 +120,13 @@ export function BatchWorkspace({
 
   useEffect(() => {
     if (!connected || !sheetConfigured) return;
+    // Keep under Google Sheets' 60 reads/min quota — job progress uses a separate endpoint.
+    const ms = running ? 10000 : 20000;
     const id = window.setInterval(() => {
       void loadQueueSilent();
-    }, 3000);
+    }, ms);
     return () => window.clearInterval(id);
-  }, [connected, sheetConfigured, loadQueueSilent]);
+  }, [connected, sheetConfigured, loadQueueSilent, running]);
 
   const stats = queue ? computeQueueStats(queue) : null;
 

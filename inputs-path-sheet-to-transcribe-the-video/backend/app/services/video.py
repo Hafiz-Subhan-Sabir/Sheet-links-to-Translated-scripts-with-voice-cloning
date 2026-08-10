@@ -2,10 +2,14 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-import yt_dlp
-
-from app.config import get_settings
 from app.services.detect_source import validate_online_url
+from app.services.media_bins import (
+    ensure_ffmpeg,
+    ensure_ffprobe,
+    ensure_media_bins,
+    ensure_yt_dlp,
+    ffmpeg_dir_for_ytdlp,
+)
 
 
 class VideoError(Exception):
@@ -13,34 +17,20 @@ class VideoError(Exception):
 
 
 def _base_ydl_opts() -> dict:
-    opts: dict = {"quiet": True, "no_warnings": True}
-    ffmpeg = get_settings().ffmpeg_location.strip()
-    if ffmpeg:
-        opts["ffmpeg_location"] = ffmpeg
-    return opts
+    ensure_media_bins()
+    return {
+        "quiet": True,
+        "no_warnings": True,
+        "ffmpeg_location": ffmpeg_dir_for_ytdlp(),
+    }
 
 
 def _ffmpeg_binary() -> str:
-    ffmpeg = get_settings().ffmpeg_location.strip()
-    if ffmpeg:
-        p = Path(ffmpeg)
-        if p.is_file():
-            return str(p)
-        candidate = p / "ffmpeg.exe"
-        if candidate.is_file():
-            return str(candidate)
-        return str(p / "ffmpeg.exe")
-    return "ffmpeg"
+    return ensure_ffmpeg()
 
 
 def _ffprobe_binary() -> str:
-    ffmpeg = get_settings().ffmpeg_location.strip()
-    if ffmpeg:
-        p = Path(ffmpeg)
-        if p.is_file():
-            return str(p.with_name("ffprobe.exe" if p.suffix.lower() == ".exe" else "ffprobe"))
-        return str(p / "ffprobe.exe")
-    return "ffprobe"
+    return ensure_ffprobe()
 
 
 def probe_media_duration(path_str: str) -> float:
@@ -93,6 +83,9 @@ def download_audio_from_url(url: str) -> tuple[str, float]:
             }
         ],
     }
+
+    ensure_yt_dlp()
+    import yt_dlp
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

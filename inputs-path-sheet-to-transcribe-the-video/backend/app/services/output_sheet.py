@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 from app.config import get_settings
 from app.constants import (
@@ -23,12 +25,38 @@ from app.services.storage import storage
 
 logger = logging.getLogger(__name__)
 
+_TAB_TTL_SEC = 600.0
+_tab_cache: dict[str, tuple[str, float]] = {}
+_headers_ready: set[str] = set()
+
 
 def _sheets_service():
     creds = get_credentials()
     if not creds:
         raise ValueError("Google account not connected")
     return build("sheets", "v4", credentials=creds, cache_discovery=False)
+
+
+def _execute_sheets(request: Any, *, what: str = "Sheets API"):
+    delay = 2.0
+    last: Optional[Exception] = None
+    for attempt in range(5):
+        try:
+            return request.execute()
+        except HttpError as e:
+            last = e
+            status = getattr(getattr(e, "resp", None), "status", None)
+            if status != 429 or attempt == 4:
+                if status == 429:
+                    raise ValueError(
+                        "Google Sheets rate limit hit (60 reads/min). "
+                        "Wait about a minute, then click Refresh."
+                    ) from e
+                raise
+            logger.warning("%s rate-limited (429); retry in %.0fs", what, delay)
+            time.sleep(delay)
+            delay = min(delay * 2, 20.0)
+    raise last  # type: ignore[misc]
 
 
 def resolve_output_sheet_url() -> Optional[str]:
@@ -47,16 +75,22 @@ def _sheet_tab_name(spreadsheet_id: str) -> str:
     settings = get_settings()
     if settings.output_sheet_tab.strip():
         return settings.output_sheet_tab.strip()
-    meta = (
+    now = time.monotonic()
+    cached = _tab_cache.get(spreadsheet_id)
+    if cached and now - cached[1] < _TAB_TTL_SEC:
+        return cached[0]
+    meta = _execute_sheets(
         _sheets_service()
         .spreadsheets()
-        .get(spreadsheetId=spreadsheet_id, fields="sheets.properties.title")
-        .execute()
+        .get(spreadsheetId=spreadsheet_id, fields="sheets.properties.title"),
+        what="output tab lookup",
     )
     sheets = meta.get("sheets", [])
     if not sheets:
         raise ValueError("Output spreadsheet has no tabs")
-    return sheets[0]["properties"]["title"]
+    title = sheets[0]["properties"]["title"]
+    _tab_cache[spreadsheet_id] = (title, now)
+    return title
 
 
 def _col_letter(index: int) -> str:
@@ -86,32 +120,36 @@ def ensure_output_headers() -> None:
         raise ValueError("Output sheet URL is not configured")
 
     spreadsheet_id = extract_spreadsheet_id(sheet_url)
+    if spreadsheet_id in _headers_ready:
+        return
+
     tab = _sheet_tab_name(spreadsheet_id)
-    result = (
+    result = _execute_sheets(
         _sheets_service()
         .spreadsheets()
         .values()
-        .get(spreadsheetId=spreadsheet_id, range=f"'{tab}'!1:1")
-        .execute()
+        .get(spreadsheetId=spreadsheet_id, range=f"'{tab}'!1:1"),
+        what="output header read",
     )
     values = result.get("values", [])
     if values and values[0]:
         existing = [str(c).strip().lower() for c in values[0]]
         expected = [h.lower() for h in OUTPUT_SHEET_HEADERS]
-        if existing[: len(expected)] == expected:
-            return
-        # Headers exist but don't match — leave them; append still works by position
-        # if first cell looks like our header
-        if "video name" in existing:
+        if existing[: len(expected)] == expected or "video name" in existing:
+            _headers_ready.add(spreadsheet_id)
             return
 
     end_col = _col_letter(len(OUTPUT_SHEET_HEADERS) - 1)
-    _sheets_service().spreadsheets().values().update(
-        spreadsheetId=spreadsheet_id,
-        range=f"'{tab}'!A1:{end_col}1",
-        valueInputOption="USER_ENTERED",
-        body={"values": [OUTPUT_SHEET_HEADERS]},
-    ).execute()
+    _execute_sheets(
+        _sheets_service().spreadsheets().values().update(
+            spreadsheetId=spreadsheet_id,
+            range=f"'{tab}'!A1:{end_col}1",
+            valueInputOption="USER_ENTERED",
+            body={"values": [OUTPUT_SHEET_HEADERS]},
+        ),
+        what="output header write",
+    )
+    _headers_ready.add(spreadsheet_id)
 
 
 @dataclass
