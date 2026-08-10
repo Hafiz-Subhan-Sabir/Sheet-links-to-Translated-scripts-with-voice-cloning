@@ -1,8 +1,9 @@
-"""ElevenLabs voice cloning + TTS synthesis."""
+"""Fish Audio voice cloning + TTS synthesis (s2.1-pro-free by default)."""
 
 from __future__ import annotations
 
 import logging
+import mimetypes
 import re
 from pathlib import Path
 from typing import Optional
@@ -14,15 +15,20 @@ from app.services import voices_db
 
 logger = logging.getLogger(__name__)
 
-ELEVEN_BASE = "https://api.elevenlabs.io/v1"
+FISH_API_BASE = "https://api.fish.audio"
 
 
 class VoiceCloneError(Exception):
     pass
 
 
+def fish_configured() -> bool:
+    return bool(get_settings().fish_api_key.strip())
+
+
+# Kept for older call sites / API field name compatibility
 def elevenlabs_configured() -> bool:
-    return bool(get_settings().elevenlabs_api_key.strip())
+    return fish_configured()
 
 
 def resolve_voice_output_dir(override: Optional[str] = None) -> Path:
@@ -38,12 +44,18 @@ def resolve_voice_output_dir(override: Optional[str] = None) -> Path:
     return path
 
 
-def _headers(api_key: str, *, json_body: bool = False) -> dict:
-    h = {"xi-api-key": api_key}
+def _auth_headers(api_key: str, *, json_body: bool = False, model: Optional[str] = None) -> dict:
+    h = {"Authorization": f"Bearer {api_key}"}
     if json_body:
         h["Content-Type"] = "application/json"
-        h["Accept"] = "application/json"
+    if model:
+        h["model"] = model
     return h
+
+
+def _guess_mime(path: Path) -> str:
+    mime, _ = mimetypes.guess_type(path.name)
+    return mime or "application/octet-stream"
 
 
 def create_cloned_voice(
@@ -53,49 +65,52 @@ def create_cloned_voice(
     description: str = "Cloned via Transcript Studio",
 ) -> dict:
     """
-    Upload a sample audio file to ElevenLabs Instant Voice Cloning.
-    Returns local voices_db entry.
+    Upload a sample to Fish Audio Instant Voice Cloning (POST /model).
+    Returns local voices_db entry with Fish model id as provider_voice_id.
     """
     settings = get_settings()
-    api_key = settings.elevenlabs_api_key.strip()
+    api_key = settings.fish_api_key.strip()
     if not api_key:
-        raise VoiceCloneError("ELEVENLABS_API_KEY is not set in backend .env")
+        raise VoiceCloneError("FISH_API_KEY is not set in backend .env")
 
     path = Path(sample_path)
     if not path.is_file():
         raise VoiceCloneError(f"Sample file not found: {sample_path}")
 
-    # Reuse existing named voice in local DB if present
     existing = voices_db.find_by_name(name)
     if existing and existing.get("provider_voice_id"):
         return existing
 
     with open(path, "rb") as f:
-        files = {"files": (path.name, f, "audio/mpeg")}
+        files = {"voices": (path.name, f, _guess_mime(path))}
         data = {
-            "name": name.strip(),
+            "type": "tts",
+            "title": name.strip(),
             "description": description,
+            "visibility": "private",
+            "train_mode": "fast",
+            "enhance_audio_quality": "true",
         }
         with httpx.Client(timeout=180.0) as client:
             resp = client.post(
-                f"{ELEVEN_BASE}/voices/add",
-                headers=_headers(api_key),
+                f"{FISH_API_BASE}/model",
+                headers=_auth_headers(api_key),
                 data=data,
                 files=files,
             )
             if resp.status_code >= 400:
                 raise VoiceCloneError(
-                    f"ElevenLabs voice clone failed ({resp.status_code}): {resp.text[:500]}"
+                    f"Fish Audio voice clone failed ({resp.status_code}): {resp.text[:500]}"
                 )
             payload = resp.json()
 
-    provider_id = payload.get("voice_id")
+    provider_id = payload.get("_id") or payload.get("id")
     if not provider_id:
-        raise VoiceCloneError(f"ElevenLabs response missing voice_id: {payload}")
+        raise VoiceCloneError(f"Fish Audio response missing model id: {payload}")
 
     return voices_db.add_voice(
         name=name.strip(),
-        provider_voice_id=provider_id,
+        provider_voice_id=str(provider_id),
         sample_filename=path.name,
     )
 
@@ -107,36 +122,37 @@ def synthesize_to_file(
     output_path: Path,
 ) -> Path:
     settings = get_settings()
-    api_key = settings.elevenlabs_api_key.strip()
+    api_key = settings.fish_api_key.strip()
     if not api_key:
-        raise VoiceCloneError("ELEVENLABS_API_KEY is not set")
+        raise VoiceCloneError("FISH_API_KEY is not set")
 
     clean = (text or "").strip()
     if not clean:
         raise VoiceCloneError("Empty text — nothing to synthesize")
 
-    # ElevenLabs has request size limits; chunk long transcripts
-    chunks = _chunk_for_tts(clean, max_chars=2400)
+    # Fish handles longer text; still chunk for reliability on huge transcripts
+    chunks = _chunk_for_tts(clean, max_chars=4000)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    model = (settings.fish_model or "s2.1-pro-free").strip()
 
     audio_parts: list[bytes] = []
     with httpx.Client(timeout=300.0) as client:
         for chunk in chunks:
             resp = client.post(
-                f"{ELEVEN_BASE}/text-to-speech/{provider_voice_id}",
-                headers={
-                    **_headers(api_key, json_body=True),
-                    "Accept": "audio/mpeg",
-                },
+                f"{FISH_API_BASE}/v1/tts",
+                headers=_auth_headers(api_key, json_body=True, model=model),
                 json={
                     "text": chunk,
-                    "model_id": settings.elevenlabs_model_id,
-                    "voice_settings": {"stability": 0.4, "similarity_boost": 0.75},
+                    "reference_id": provider_voice_id,
+                    "format": "mp3",
+                    "normalize": True,
+                    "latency": "normal",
+                    "mp3_bitrate": 192,
                 },
             )
             if resp.status_code >= 400:
                 raise VoiceCloneError(
-                    f"ElevenLabs TTS failed ({resp.status_code}): {resp.text[:500]}"
+                    f"Fish Audio TTS failed ({resp.status_code}): {resp.text[:500]}"
                 )
             audio_parts.append(resp.content)
 
@@ -144,7 +160,7 @@ def synthesize_to_file(
     return output_path
 
 
-def _chunk_for_tts(text: str, max_chars: int = 2400) -> list[str]:
+def _chunk_for_tts(text: str, max_chars: int = 4000) -> list[str]:
     if len(text) <= max_chars:
         return [text]
     chunks: list[str] = []

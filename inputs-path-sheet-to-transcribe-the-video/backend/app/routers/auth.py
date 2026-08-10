@@ -34,8 +34,13 @@ def _frontend_base_url() -> str:
 @router.get("/google")
 def google_auth_start():
     settings = get_settings()
-    if not settings.google_client_id or not settings.google_client_secret:
-        raise HTTPException(status_code=503, detail="Google OAuth not configured")
+    if not settings.google_client_id.strip() or not settings.google_client_secret.strip():
+        # Stay in the app UI instead of dumping a raw API error page
+        msg = (
+            "Google+OAuth+not+configured.+Add+GOOGLE_CLIENT_ID+and+GOOGLE_CLIENT_SECRET+"
+            "to+backend/.env+then+restart+the+backend."
+        )
+        return RedirectResponse(f"{_frontend_base_url()}?auth=error&message={msg}")
     url, state, code_verifier = get_authorization_url()
     store_oauth_state(state, code_verifier)
     return RedirectResponse(url)
@@ -89,6 +94,7 @@ def google_auth_callback(
 def auth_status():
     from app.services.input_sheet import is_input_sheet_configured, resolve_input_sheet_url
 
+    settings = get_settings()
     email = get_user_email()
     sheet_url = resolve_input_sheet_url() if is_input_sheet_configured() else None
     return AuthStatusResponse(
@@ -96,6 +102,9 @@ def auth_status():
         email=email,
         sheet_ready=is_input_sheet_configured(),
         sheet_url=sheet_url,
+        oauth_configured=bool(
+            settings.google_client_id.strip() and settings.google_client_secret.strip()
+        ),
     )
 
 

@@ -86,7 +86,7 @@ async def clone_voice(
     if not elevenlabs_configured():
         raise HTTPException(
             status_code=400,
-            detail="Set ELEVENLABS_API_KEY in backend .env to enable voice cloning",
+            detail="Set FISH_API_KEY in backend .env to enable voice cloning",
         )
     if not name.strip():
         raise HTTPException(status_code=400, detail="Voice name is required")
@@ -129,7 +129,7 @@ def synthesize(body: VoiceSynthesizeRequest):
     if not is_output_sheet_configured():
         raise HTTPException(status_code=400, detail="Output sheet URL is not configured")
     if not elevenlabs_configured():
-        raise HTTPException(status_code=400, detail="ELEVENLABS_API_KEY is not set")
+        raise HTTPException(status_code=400, detail="FISH_API_KEY is not set")
     if not body.voice_id:
         raise HTTPException(status_code=400, detail="Select a voice")
     if not body.output_row_indexes:

@@ -22,6 +22,7 @@ const TABS: { id: TabId; label: string }[] = [
 export default function Dashboard() {
   const [connected, setConnected] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
+  const [oauthConfigured, setOauthConfigured] = useState(false);
   const [sheetConfigured, setSheetConfigured] = useState(false);
   const [outputConfigured, setOutputConfigured] = useState(false);
   const [inputSheetUrl, setInputSheetUrl] = useState<string | null>(null);
@@ -38,11 +39,13 @@ export default function Dashboard() {
       const [status, batchCfg] = await Promise.all([api.authStatus(), api.batchConfig()]);
       setConnected(status.connected);
       setEmail(status.email ?? null);
+      setOauthConfigured(!!status.oauth_configured);
       setSheetConfigured(batchCfg.input_sheet_configured);
       setOutputConfigured(!!batchCfg.output_sheet_configured);
       setInputSheetUrl(status.sheet_url ?? null);
     } catch {
       setConnected(false);
+      setOauthConfigured(false);
     }
   }, []);
 
@@ -79,6 +82,15 @@ export default function Dashboard() {
 
   const nextAction = useMemo(() => {
     if (!connected) {
+      if (!oauthConfigured) {
+        return {
+          label: "Next step",
+          title:
+            "Add GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET to backend/.env (one Gmail), restart backend, then connect",
+          cta: null as string | null,
+          onClick: null as (() => void) | null,
+        };
+      }
       return {
         label: "Next step",
         title: "Connect your Google account so we can use Sheets and Docs",
@@ -118,12 +130,12 @@ export default function Dashboard() {
       cta: null,
       onClick: null,
     };
-  }, [connected, sheetsReady, tab]);
+  }, [connected, oauthConfigured, sheetsReady, tab]);
 
   return (
-    <div className="flex h-[100vh] w-[100vw] items-center justify-center p-[5vh_5vw]">
+    <div className="app-viewport">
       <div className="app-shell animate-fade-in-up">
-        <header className="flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6 sm:py-4">
+        <header className="flex shrink-0 items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-5 sm:py-3">
           <div className="min-w-0 flex-1">
             <p className="brand-mark">
               Volt<span>Script</span>
@@ -178,9 +190,9 @@ export default function Dashboard() {
           })}
         </div>
 
-        <div className="scroll-pane min-h-0 flex-1 px-4 py-3 sm:px-6 sm:py-4">
+        <div className="scroll-pane min-h-0 flex-1 px-3 py-2.5 sm:px-5 sm:py-3">
           {tab === "setup" && (
-            <div className="mx-auto grid max-w-5xl gap-4 lg:grid-cols-[1.05fr_1fr]">
+            <div className="mx-auto grid max-w-5xl gap-3 lg:grid-cols-[1.05fr_1fr] lg:gap-4">
               <section className="space-y-4">
                 <div>
                   <p className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-[color-mix(in_srgb,var(--volt)_35%,transparent)] bg-[color-mix(in_srgb,var(--volt)_12%,transparent)] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--volt)]">
@@ -235,6 +247,7 @@ export default function Dashboard() {
                   email={email}
                   sheetReady={sheetsReady}
                   sheetUrl={inputSheetUrl}
+                  oauthConfigured={oauthConfigured}
                   onStatusChange={refreshAuth}
                 />
               </section>
@@ -275,7 +288,7 @@ export default function Dashboard() {
             <p className="truncate text-sm font-semibold sm:text-base">{nextAction.title}</p>
           </div>
           {nextAction.cta && nextAction.onClick && (
-            <Button size="lg" onClick={nextAction.onClick} className="shrink-0">
+            <Button size="default" onClick={nextAction.onClick} className="shrink-0 sm:h-11 sm:px-8 sm:text-base">
               {nextAction.cta}
               <ArrowRight className="h-4 w-4" />
             </Button>

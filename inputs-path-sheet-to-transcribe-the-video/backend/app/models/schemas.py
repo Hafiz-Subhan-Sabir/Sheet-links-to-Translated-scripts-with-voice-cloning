@@ -68,6 +68,7 @@ class AuthStatusResponse(BaseModel):
     email: Optional[str] = None
     sheet_ready: bool = False
     sheet_url: Optional[str] = None
+    oauth_configured: bool = False
 
 
 class DocsCreateRequest(BaseModel):

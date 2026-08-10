@@ -69,6 +69,10 @@ def _apply_swaps(text: str, pairs: list[tuple[str, str]]) -> str:
 
 def _llm_variant(text: str, style: str) -> str | None:
     settings = get_settings()
+    choice = settings.description_provider.strip().lower()
+    if choice in {"off", "none", "false", "0", "local"}:
+        return None
+
     has_openai = bool(settings.openai_api_key.strip())
     has_gemini = bool(settings.gemini_api_key.strip())
     if not has_openai and not has_gemini:

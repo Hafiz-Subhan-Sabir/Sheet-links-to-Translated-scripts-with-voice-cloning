@@ -43,15 +43,18 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
-    description_provider: str = "auto"  # used for category + en-GB/en-US style
+    description_provider: str = "off"  # off | auto | openai | gemini — off = no LLM descriptions/category
     description_transcript_max_chars: int = 120_000
     batch_workers: int = 3
     input_sheet_tab: str = ""
     output_sheet_tab: str = ""
-    # ElevenLabs voice cloning
+    # Fish Audio voice cloning (preferred)
+    fish_api_key: str = ""
+    fish_model: str = "s2.1-pro-free"
+    voice_output_dir: str = "./data/voices_output"
+    # Deprecated — kept so old .env files don't break
     elevenlabs_api_key: str = ""
     elevenlabs_model_id: str = "eleven_multilingual_v2"
-    voice_output_dir: str = "./data/voices_output"
     # Deprecated — kept so old .env files don't break
     output_doc_title: str = "Video Transcripts"
 

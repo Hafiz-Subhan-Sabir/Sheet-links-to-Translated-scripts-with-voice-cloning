@@ -33,6 +33,7 @@ export interface AuthStatusResponse {
   email?: string | null;
   sheet_ready?: boolean;
   sheet_url?: string | null;
+  oauth_configured?: boolean;
 }
 
 export interface DocsCreateResponse {

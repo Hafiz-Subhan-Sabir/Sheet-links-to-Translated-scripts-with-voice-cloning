@@ -265,8 +265,8 @@ export function VoiceClonePanel({ connected, outputConfigured }: VoiceClonePanel
         </p>
         {!elevenlabs && (
           <p className="mt-2 rounded-xl bg-[color-mix(in_srgb,var(--warn)_12%,transparent)] px-3 py-2 text-sm text-[var(--warn)]">
-            Add <code className="text-xs">ELEVENLABS_API_KEY</code> in backend <code className="text-xs">.env</code> to
-            enable cloning.
+            Add <code className="text-xs">FISH_API_KEY</code> in backend <code className="text-xs">.env</code> to
+            enable Fish Audio cloning.
           </p>
         )}
       </div>

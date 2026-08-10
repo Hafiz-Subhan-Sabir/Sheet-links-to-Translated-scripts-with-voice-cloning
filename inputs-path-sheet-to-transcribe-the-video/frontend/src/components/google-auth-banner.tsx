@@ -10,6 +10,7 @@ interface GoogleAuthBannerProps {
   email?: string | null;
   sheetReady?: boolean;
   sheetUrl?: string | null;
+  oauthConfigured?: boolean;
   onStatusChange: () => void;
 }
 
@@ -18,9 +19,19 @@ export function GoogleAuthBanner({
   email,
   sheetReady,
   sheetUrl,
+  oauthConfigured = true,
   onStatusChange,
 }: GoogleAuthBannerProps) {
   const handleConnect = () => {
+    if (!oauthConfigured) {
+      toast({
+        title: "Google OAuth not set up yet",
+        description:
+          "Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to backend/.env, restart backend, then try again.",
+        variant: "destructive",
+      });
+      return;
+    }
     window.location.href = api.googleAuthUrl();
   };
 
@@ -52,7 +63,17 @@ export function GoogleAuthBanner({
         </div>
         <h3 className="text-lg font-extrabold tracking-tight">Connect Google</h3>
         <p className="mt-1 text-sm text-muted-foreground">One click for Sheets and Docs access.</p>
-        <Button onClick={handleConnect} size="lg" className="mt-4 w-full">
+        {!oauthConfigured && (
+          <p className="mt-3 rounded-xl bg-[color-mix(in_srgb,var(--warn)_12%,transparent)] px-3 py-2 text-sm text-[var(--warn)]">
+            Missing OAuth keys. Create a Google Cloud Desktop/Web client for{" "}
+            <strong>one Gmail</strong>, put <code className="text-xs">GOOGLE_CLIENT_ID</code> +{" "}
+            <code className="text-xs">GOOGLE_CLIENT_SECRET</code> in{" "}
+            <code className="text-xs">backend/.env</code>, add redirect{" "}
+            <code className="text-xs">http://localhost:8000/api/auth/google/callback</code>, add
+            yourself as a Test user, then restart the backend.
+          </p>
+        )}
+        <Button onClick={handleConnect} size="lg" className="mt-4 w-full" disabled={!oauthConfigured}>
           Continue with Google
         </Button>
       </div>

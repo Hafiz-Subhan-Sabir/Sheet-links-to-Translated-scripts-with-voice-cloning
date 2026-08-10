@@ -15,13 +15,22 @@ logger = logging.getLogger(__name__)
 
 def _resolve_provider() -> str | None:
     settings = get_settings()
+    choice = settings.description_provider.strip().lower()
+    # off/none/local = skip LLM (use keyword fallback only)
+    if choice in {"off", "none", "false", "0", "local"}:
+        return None
     has_openai = bool(settings.openai_api_key.strip())
     has_gemini = bool(settings.gemini_api_key.strip())
-    choice = settings.description_provider.strip().lower()
     if choice == "openai" and has_openai:
         return "openai"
     if choice == "gemini" and has_gemini:
         return "gemini"
+    if choice == "auto":
+        if has_openai:
+            return "openai"
+        if has_gemini:
+            return "gemini"
+        return None
     if has_openai:
         return "openai"
     if has_gemini:
