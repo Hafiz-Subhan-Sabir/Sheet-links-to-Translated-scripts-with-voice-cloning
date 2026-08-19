@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -246,3 +247,59 @@ def download_url_as_mp3(url: str, out_dir: Optional[Path] = None) -> Path:
     if matches:
         return matches[0]
     raise RuntimeError(f"MP3 was not created for {url}")
+
+
+def prepare_voice_sample_from_url(
+    url: str,
+    *,
+    out_dir: Optional[Path] = None,
+    start_sec: float = 0.0,
+    duration_sec: float = 30.0,
+) -> tuple[Path, str]:
+    """
+    Download audio from a URL and trim a short clip for Fish voice cloning.
+
+    Returns (sample_mp3_path, source_title).
+    """
+    import subprocess
+    import yt_dlp
+
+    ensure_media_bins()
+    dest = Path(out_dir) if out_dir else tools_dir() / "voice_samples"
+    dest.mkdir(parents=True, exist_ok=True)
+
+    # Metadata first (title) then download
+    with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "skip_download": True}) as ydl:
+        info = ydl.extract_info(url, download=False)
+    title = (info.get("title") or info.get("id") or "voice-sample") if isinstance(info, dict) else "voice-sample"
+
+    full = download_url_as_mp3(url, dest)
+    start = max(0.0, float(start_sec or 0.0))
+    duration = max(5.0, min(90.0, float(duration_sec or 30.0)))
+
+    safe_stem = re.sub(r"[^\w\s\-]", "", title, flags=re.UNICODE).strip()
+    safe_stem = re.sub(r"\s+", "-", safe_stem)[:60] or "voice-sample"
+    sample = dest / f"{safe_stem}-sample-{int(start)}s-{int(duration)}s.mp3"
+
+    ffmpeg = ensure_ffmpeg()
+    cmd = [
+        ffmpeg,
+        "-y",
+        "-ss",
+        str(start),
+        "-t",
+        str(duration),
+        "-i",
+        str(full),
+        "-acodec",
+        "libmp3lame",
+        "-q:a",
+        "2",
+        str(sample),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 or not sample.is_file():
+        raise RuntimeError(
+            f"Could not trim voice sample: {(result.stderr or result.stdout or '')[:400]}"
+        )
+    return sample, str(title)

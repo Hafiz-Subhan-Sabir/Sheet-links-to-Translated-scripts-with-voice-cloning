@@ -266,6 +266,17 @@ export const api = {
     return res.json() as Promise<{ voice: import("./types").VoiceInfo }>;
   },
 
+  voiceCloneFromUrl: (body: {
+    url: string;
+    name?: string;
+    start_sec?: number;
+    duration_sec?: number;
+  }) =>
+    apiFetch<{ job_id: string }>("/api/voice/clone-from-url", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   voiceSetOutputDir: (path: string) =>
     apiFetch<{ success: boolean; voice_output_dir: string }>("/api/voice/output-dir", {
       method: "POST",
@@ -282,6 +293,51 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  voiceSpeakText: (body: { voice_id: string; text: string; title?: string; output_dir?: string }) =>
+    apiFetch<{ job_id: string }>("/api/voice/speak-text", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  studioOriginal: (body: {
+    topic: string;
+    niche?: string;
+    audience?: string;
+    format_hint?: string;
+    length_minutes?: number;
+  }) =>
+    apiFetch<{ mode: string; topic: string; niche: string; markdown: string }>(
+      "/api/studio/original",
+      { method: "POST", body: JSON.stringify(body) },
+      180000
+    ),
+
+  studioViral: (body: { urls: string[]; niche?: string; goal?: string }) =>
+    apiFetch<{
+      mode: string;
+      markdown: string;
+      videos: {
+        title: string;
+        view_count: number;
+        url: string;
+        channel?: string;
+        views_per_day?: number | null;
+      }[];
+    }>("/api/studio/viral", { method: "POST", body: JSON.stringify(body) }, 300000),
+
+  studioShorts: (body: { urls: string[]; niche?: string; goal?: string }) =>
+    apiFetch<{
+      mode: string;
+      markdown: string;
+      videos: {
+        title: string;
+        view_count: number;
+        url: string;
+        channel?: string;
+        views_per_day?: number | null;
+      }[];
+    }>("/api/studio/shorts", { method: "POST", body: JSON.stringify(body) }, 300000),
 };
 
 export function waitForJob(

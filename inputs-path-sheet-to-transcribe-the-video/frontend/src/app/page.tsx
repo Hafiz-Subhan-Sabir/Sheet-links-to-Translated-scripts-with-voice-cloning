@@ -3,19 +3,25 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminSection } from "@/components/admin-section";
 import { BatchWorkspace } from "@/components/batch-workspace";
+import { ModeChooser, type WorkflowId } from "@/components/mode-chooser";
+import { SpeakWorkspace } from "@/components/speak-workspace";
+import { StudioWorkspace } from "@/components/studio-workspace";
 import { VoiceClonePanel } from "@/components/voice-clone-panel";
 import { GoogleAuthBanner } from "@/components/google-auth-banner";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { ArrowRight, Clapperboard, Mic2, Sparkles, Zap } from "lucide-react";
+import { ArrowRight, Clapperboard, Home, Mic2, Sparkles, Zap } from "lucide-react";
 
-type TabId = "setup" | "transcribe" | "voice";
+type TabId = "setup" | "home" | "transcribe" | "studio" | "speak" | "voice";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "setup", label: "Setup" },
+  { id: "home", label: "Home" },
   { id: "transcribe", label: "Run" },
+  { id: "studio", label: "Studio" },
+  { id: "speak", label: "Speak" },
   { id: "voice", label: "Voice" },
 ];
 
@@ -28,11 +34,13 @@ export default function Dashboard() {
   const [inputSheetUrl, setInputSheetUrl] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>("setup");
   const [userPickedTab, setUserPickedTab] = useState(false);
+  const [workflow, setWorkflow] = useState<WorkflowId | null>(null);
 
   const sheetsReady = sheetConfigured && outputConfigured;
   const setupDone = connected && sheetsReady;
   const canTranscribe = setupDone;
   const canVoice = connected && outputConfigured;
+  const canHome = connected;
 
   const refreshAuth = useCallback(async () => {
     try {
@@ -66,18 +74,29 @@ export default function Dashboard() {
     }
   }, [refreshAuth]);
 
-  // Auto-advance: setup → run when ready (unless user chose a tab)
+  // After Google connect → Home (mode chooser). Sheets only required for Run/transcribe.
   useEffect(() => {
     if (userPickedTab) return;
-    if (!setupDone) setTab("setup");
-    else setTab("transcribe");
-  }, [setupDone, userPickedTab]);
+    if (!connected) setTab("setup");
+    else setTab("home");
+  }, [connected, userPickedTab]);
 
   const selectTab = (id: TabId) => {
+    if (id === "home" && !canHome) return;
     if (id === "transcribe" && !canTranscribe) return;
     if (id === "voice" && !canVoice) return;
+    if (id === "studio" && !connected) return;
+    if (id === "speak" && !connected) return;
     setUserPickedTab(true);
     setTab(id);
+  };
+
+  const chooseWorkflow = (id: WorkflowId) => {
+    setWorkflow(id);
+    setUserPickedTab(true);
+    if (id === "transcribe") setTab("transcribe");
+    else if (id === "speak") setTab("speak");
+    else setTab("studio");
   };
 
   const nextAction = useMemo(() => {
@@ -100,20 +119,28 @@ export default function Dashboard() {
         },
       };
     }
-    if (!sheetsReady) {
+    if (tab === "setup" && !sheetsReady) {
       return {
         label: "Next step",
-        title: "Open “Your Google Sheets” below, unlock, and paste both spreadsheet links",
-        cta: null as string | null,
-        onClick: null as (() => void) | null,
+        title: "For sheet transcription: unlock “Your Google Sheets” and paste both links",
+        cta: "Choose workflow",
+        onClick: () => selectTab("home"),
       };
     }
     if (tab === "setup") {
       return {
         label: "You’re set",
-        title: "Everything’s linked — start processing your videos",
-        cta: "Start processing",
-        onClick: () => selectTab("transcribe"),
+        title: "Pick a workflow on Home — transcribe, original, viral, or Shorts",
+        cta: "Choose workflow",
+        onClick: () => selectTab("home"),
+      };
+    }
+    if (tab === "home") {
+      return {
+        label: "Your move",
+        title: "Tap a numbered path — each one says what you’ll get",
+        cta: null,
+        onClick: null,
       };
     }
     if (tab === "transcribe") {
@@ -124,13 +151,28 @@ export default function Dashboard() {
         onClick: () => selectTab("voice"),
       };
     }
+    if (tab === "studio") {
+      return {
+        label: "Studio",
+        title: "Use the brief as a starting point — then script, film, or voice-clone your own take",
+        cta: "All workflows",
+        onClick: () => selectTab("home"),
+      };
+    }
     return {
       label: "Finish up",
-      title: "Choose a voice, pick transcripts, then clone — or mark them done",
+      title: "Save voice → Speak selected text (ready rows auto-select after save)",
       cta: null,
       onClick: null,
     };
   }, [connected, oauthConfigured, sheetsReady, tab]);
+
+  const tabLocked = (id: TabId) =>
+    (id === "home" && !canHome) ||
+    (id === "transcribe" && !canTranscribe) ||
+    (id === "voice" && !canVoice) ||
+    (id === "studio" && !connected) ||
+    (id === "speak" && !connected);
 
   return (
     <div className="app-viewport">
@@ -142,52 +184,49 @@ export default function Dashboard() {
             </p>
             <p className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
               <span className="pulse-dot" />
-              Sheet → translate → voice
+              Sheet → studio → voice
             </p>
           </div>
 
           <nav className="rail hidden sm:flex" aria-label="Steps">
-            {TABS.map((t) => {
-              const locked =
-                (t.id === "transcribe" && !canTranscribe) || (t.id === "voice" && !canVoice);
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  className="rail-btn"
-                  data-active={tab === t.id}
-                  disabled={locked}
-                  onClick={() => selectTab(t.id)}
-                >
-                  {t.id === "setup" && <Zap className="h-3.5 w-3.5" />}
-                  {t.id === "transcribe" && <Clapperboard className="h-3.5 w-3.5" />}
-                  {t.id === "voice" && <Mic2 className="h-3.5 w-3.5" />}
-                  {t.label}
-                </button>
-              );
-            })}
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className="rail-btn"
+                data-tab={t.id}
+                data-active={tab === t.id}
+                disabled={tabLocked(t.id)}
+                onClick={() => selectTab(t.id)}
+              >
+                {t.id === "setup" && <Zap className="h-3.5 w-3.5" />}
+                {t.id === "home" && <Home className="h-3.5 w-3.5" />}
+                {t.id === "transcribe" && <Clapperboard className="h-3.5 w-3.5" />}
+                {t.id === "studio" && <Sparkles className="h-3.5 w-3.5" />}
+                {t.id === "speak" && <Mic2 className="h-3.5 w-3.5" />}
+                {t.id === "voice" && <Mic2 className="h-3.5 w-3.5" />}
+                {t.label}
+              </button>
+            ))}
           </nav>
 
           <ThemeToggle />
         </header>
 
         <div className="flex shrink-0 gap-1 overflow-x-auto px-3 pb-2 sm:hidden">
-          {TABS.map((t) => {
-            const locked =
-              (t.id === "transcribe" && !canTranscribe) || (t.id === "voice" && !canVoice);
-            return (
-              <button
-                key={t.id}
-                type="button"
-                className="rail-btn shrink-0"
-                data-active={tab === t.id}
-                disabled={locked}
-                onClick={() => selectTab(t.id)}
-              >
-                {t.label}
-              </button>
-            );
-          })}
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className="rail-btn shrink-0"
+              data-tab={t.id}
+              data-active={tab === t.id}
+              disabled={tabLocked(t.id)}
+              onClick={() => selectTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         <div className="scroll-pane min-h-0 flex-1 px-3 py-2.5 sm:px-5 sm:py-3">
@@ -202,9 +241,9 @@ export default function Dashboard() {
                   <h2 className="hero-blurb">
                     Sign in once.
                     <br />
-                    Add your sheets.
+                    Add sheets if you need them.
                     <br />
-                    <span style={{ color: "var(--coral)" }}>Start processing.</span>
+                    <span style={{ color: "var(--coral)" }}>Pick a workflow.</span>
                   </h2>
                 </div>
 
@@ -215,13 +254,13 @@ export default function Dashboard() {
                       n: "2",
                       ok: sheetConfigured,
                       t: "Video list sheet",
-                      d: "Where your video links live",
+                      d: "Only needed for sheet transcription",
                     },
                     {
                       n: "3",
                       ok: outputConfigured,
                       t: "Results sheet",
-                      d: "Where transcripts get saved",
+                      d: "Needed for Run + Voice results",
                     },
                   ].map((s) => (
                     <li key={s.n} className="checklist-item">
@@ -262,6 +301,10 @@ export default function Dashboard() {
             </div>
           )}
 
+          {tab === "home" && (
+            <ModeChooser sheetsReady={sheetsReady} onChoose={chooseWorkflow} />
+          )}
+
           {tab === "transcribe" && (
             <div className="mx-auto h-full max-w-5xl">
               <BatchWorkspace
@@ -273,6 +316,29 @@ export default function Dashboard() {
                 onOpenVoice={() => selectTab("voice")}
               />
             </div>
+          )}
+
+          {tab === "studio" && (
+            <StudioWorkspace
+              mode={
+                workflow === "original" || workflow === "viral" || workflow === "shorts"
+                  ? workflow
+                  : "original"
+              }
+              onBack={() => {
+                setWorkflow(null);
+                selectTab("home");
+              }}
+            />
+          )}
+
+          {tab === "speak" && (
+            <SpeakWorkspace
+              onBack={() => {
+                setWorkflow(null);
+                selectTab("home");
+              }}
+            />
           )}
 
           {tab === "voice" && (

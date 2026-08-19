@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Outfit } from "next/font/google";
 import localFont from "next/font/local";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
@@ -14,6 +15,11 @@ const geistMono = localFont({
   variable: "--font-geist-mono",
   weight: "100 900",
 });
+const outfit = Outfit({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["600", "700", "800"],
+});
 
 export const metadata: Metadata = {
   title: "VoltScript — Sheet → Translate → Voice",
@@ -27,7 +33,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} antialiased`}>
         <ThemeProvider>{children}</ThemeProvider>
         <Toaster />
       </body>

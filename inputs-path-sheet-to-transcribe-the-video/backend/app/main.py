@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import admin, auth, batch, detect, transcribe, voice
+from app.routers import admin, auth, batch, detect, studio, transcribe, voice
 from app.services.transcribe import schedule_whisper_preload
 from app.services.workers import submit_task
 
@@ -33,9 +33,10 @@ app = FastAPI(
     description=(
         "Batch transcribe videos from an input Google Sheet, translate into "
         "English variants + top languages, write an output sheet + Google Docs, "
-        "then optionally voice-clone selected transcripts."
+        "then optionally voice-clone selected transcripts. Also includes Studio "
+        "modes for original scripts and viral/Shorts analysis."
     ),
-    version="2.0.0",
+    version="2.1.0",
     lifespan=lifespan,
 )
 
@@ -55,6 +56,7 @@ app.add_middleware(
 
 app.include_router(batch.router)
 app.include_router(voice.router)
+app.include_router(studio.router)
 app.include_router(detect.router)
 app.include_router(transcribe.router)
 app.include_router(auth.router)

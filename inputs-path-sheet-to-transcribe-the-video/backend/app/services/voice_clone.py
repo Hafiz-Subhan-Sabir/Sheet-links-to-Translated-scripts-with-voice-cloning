@@ -6,7 +6,7 @@ import logging
 import mimetypes
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import httpx
 
@@ -77,10 +77,7 @@ def create_cloned_voice(
     if not path.is_file():
         raise VoiceCloneError(f"Sample file not found: {sample_path}")
 
-    existing = voices_db.find_by_name(name)
-    if existing and existing.get("provider_voice_id"):
-        return existing
-
+    # Always upload the new sample to Fish — never reuse an old model for the same name.
     with open(path, "rb") as f:
         files = {"voices": (path.name, f, _guess_mime(path))}
         data = {
@@ -120,6 +117,7 @@ def synthesize_to_file(
     provider_voice_id: str,
     text: str,
     output_path: Path,
+    on_progress: Optional[Callable[[float, str], None]] = None,
 ) -> Path:
     settings = get_settings()
     api_key = settings.fish_api_key.strip()
@@ -130,31 +128,66 @@ def synthesize_to_file(
     if not clean:
         raise VoiceCloneError("Empty text — nothing to synthesize")
 
-    # Fish handles longer text; still chunk for reliability on huge transcripts
-    chunks = _chunk_for_tts(clean, max_chars=4000)
+    # Smaller chunks → more progress ticks + fewer Fish timeouts on long scripts
+    chunks = _chunk_for_tts(clean, max_chars=1800)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     model = (settings.fish_model or "s2.1-pro-free").strip()
+    total_chunks = len(chunks)
 
     audio_parts: list[bytes] = []
-    with httpx.Client(timeout=300.0) as client:
-        for chunk in chunks:
-            resp = client.post(
-                f"{FISH_API_BASE}/v1/tts",
-                headers=_auth_headers(api_key, json_body=True, model=model),
-                json={
-                    "text": chunk,
-                    "reference_id": provider_voice_id,
-                    "format": "mp3",
-                    "normalize": True,
-                    "latency": "normal",
-                    "mp3_bitrate": 192,
-                },
-            )
-            if resp.status_code >= 400:
-                raise VoiceCloneError(
-                    f"Fish Audio TTS failed ({resp.status_code}): {resp.text[:500]}"
+    with httpx.Client(timeout=httpx.Timeout(30.0, read=180.0)) as client:
+        for i, chunk in enumerate(chunks):
+            if on_progress:
+                on_progress(
+                    (i / max(1, total_chunks)),
+                    f"Fish TTS chunk {i + 1}/{total_chunks} ({len(chunk)} chars)",
                 )
-            audio_parts.append(resp.content)
+            last_err: Optional[Exception] = None
+            for attempt in range(3):
+                try:
+                    resp = client.post(
+                        f"{FISH_API_BASE}/v1/tts",
+                        headers=_auth_headers(api_key, json_body=True, model=model),
+                        json={
+                            "text": chunk,
+                            "reference_id": provider_voice_id,
+                            "format": "mp3",
+                            "normalize": True,
+                            "latency": "normal",
+                            "mp3_bitrate": 128,
+                        },
+                    )
+                    if resp.status_code >= 400:
+                        raise VoiceCloneError(
+                            f"Fish Audio TTS failed ({resp.status_code}): {resp.text[:500]}"
+                        )
+                    if not resp.content:
+                        raise VoiceCloneError("Fish Audio returned empty audio")
+                    audio_parts.append(resp.content)
+                    last_err = None
+                    break
+                except Exception as e:
+                    last_err = e
+                    logger.warning(
+                        "TTS chunk %s/%s attempt %s failed: %s",
+                        i + 1,
+                        total_chunks,
+                        attempt + 1,
+                        e,
+                    )
+                    if attempt < 2:
+                        import time
+
+                        time.sleep(1.5 * (attempt + 1))
+            if last_err is not None:
+                raise VoiceCloneError(
+                    f"TTS failed on chunk {i + 1}/{total_chunks}: {last_err}"
+                ) from last_err
+            if on_progress:
+                on_progress(
+                    ((i + 1) / max(1, total_chunks)),
+                    f"Fish TTS chunk {i + 1}/{total_chunks} done",
+                )
 
     output_path.write_bytes(b"".join(audio_parts))
     return output_path
@@ -179,6 +212,16 @@ def _chunk_for_tts(text: str, max_chars: int = 4000) -> list[str]:
 
 
 def safe_filename(name: str) -> str:
+    """Sanitize for filesystem use while keeping readable Voice - Title names."""
     cleaned = re.sub(r"[^\w\s\-\.]", "", name, flags=re.UNICODE).strip()
-    cleaned = re.sub(r"\s+", "_", cleaned)
+    cleaned = re.sub(r"[\s_]+", " ", cleaned).strip()
+    cleaned = cleaned.replace(" ", "-")
+    cleaned = re.sub(r"-{2,}", "-", cleaned).strip("-.")
     return (cleaned or "audio")[:120]
+
+
+def voice_mp3_filename(*parts: str) -> str:
+    """Build `Voice - Title.mp3` (or Voice - Video - Language.mp3)."""
+    chunks = [safe_filename(p) for p in parts if p and str(p).strip()]
+    stem = " - ".join(chunks) if chunks else "audio"
+    return f"{stem}.mp3"

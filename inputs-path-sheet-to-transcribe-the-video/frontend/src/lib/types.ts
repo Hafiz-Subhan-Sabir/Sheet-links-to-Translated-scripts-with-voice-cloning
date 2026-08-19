@@ -144,6 +144,7 @@ export interface VoiceJobResult {
   processed: number;
   failed: number;
   files: string[];
+  filenames?: string[];
   output_dir: string;
   voice_name: string;
   errors: Array<{ row_index: number; error: string }>;

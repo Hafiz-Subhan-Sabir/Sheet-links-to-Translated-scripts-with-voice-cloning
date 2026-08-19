@@ -321,6 +321,24 @@ class VoiceSynthesizeResponse(BaseModel):
     job_id: str
 
 
+class SpeakTextRequest(BaseModel):
+    voice_id: str
+    text: str
+    title: str = "spoken"
+    output_dir: Optional[str] = None
+
+
+class VoiceCloneFromUrlRequest(BaseModel):
+    url: str
+    name: str = ""
+    start_sec: float = 0.0
+    duration_sec: float = 30.0
+
+
+class VoiceCloneFromUrlResponse(BaseModel):
+    job_id: str
+
+
 class MarkDoneRequest(BaseModel):
     output_row_indexes: list[int] = Field(default_factory=list)
 

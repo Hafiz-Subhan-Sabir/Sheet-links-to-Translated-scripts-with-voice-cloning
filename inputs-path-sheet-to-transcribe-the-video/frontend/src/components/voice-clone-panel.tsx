@@ -18,6 +18,7 @@ import type {
 } from "@/lib/types";
 import {
   CheckCircle2,
+  Download,
   ExternalLink,
   Loader2,
   Mic,
@@ -48,6 +49,24 @@ const selectClass = cn(
   "flex h-11 w-full rounded-xl border border-border bg-[var(--card)] px-3 text-sm text-foreground",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
 );
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+async function saveMp3ToDisk(filename: string) {
+  const res = await fetch(`${API_URL}/api/voice/download/${encodeURIComponent(filename)}`);
+  if (!res.ok) {
+    throw new Error(res.status === 404 ? "File not found" : `Download failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objectUrl);
+}
 
 interface VoiceClonePanelProps {
   connected: boolean;
@@ -127,11 +146,21 @@ export function VoiceClonePanel({ connected, outputConfigured }: VoiceClonePanel
     setCloning(true);
     try {
       const res = await api.voiceClone(newVoiceName.trim(), sampleFile);
-      toast({ title: "Voice saved", description: `“${res.voice.name}” is ready in the dropdown.` });
+      toast({
+        title: "Voice ready",
+        description: "Sample trained. Ready rows selected — hit Speak selected text.",
+      });
       setSelectedVoice(res.voice.id);
       setNewVoiceName("");
       setSampleFile(null);
-      await refresh();
+      const [out, voiceList] = await Promise.all([api.batchOutput(), api.voiceList()]);
+      setOutput(out);
+      setVoices(voiceList.voices);
+      setElevenlabs(voiceList.elevenlabs_configured);
+      setSelectedVoice(res.voice.id);
+      setSelectedRows(
+        new Set(out.rows.filter((r) => r.status === "ready_for_voice").map((r) => r.row_index))
+      );
     } catch (err) {
       toast({
         title: "Clone failed",
@@ -261,7 +290,7 @@ export function VoiceClonePanel({ connected, outputConfigured }: VoiceClonePanel
       <div>
         <h2 className="text-xl font-extrabold tracking-tight sm:text-2xl">Voice</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Sample → pick voice → select rows → clone. Or skip with Mark done.
+          Train once → speak selected scripts. Or skip with Mark done.
         </p>
         {!elevenlabs && (
           <p className="mt-2 rounded-xl bg-[color-mix(in_srgb,var(--warn)_12%,transparent)] px-3 py-2 text-sm text-[var(--warn)]">
@@ -273,50 +302,18 @@ export function VoiceClonePanel({ connected, outputConfigured }: VoiceClonePanel
 
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <div className="surface scroll-pane max-h-[70vh] space-y-4 p-4 sm:p-5">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Saved voice</Label>
-              <select
-                className={selectClass}
-                value={selectedVoice}
-                onChange={(e) => setSelectedVoice(e.target.value)}
-              >
-                <option value="">Choose a voice…</option>
-                {voices.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label>Language to speak</Label>
-              <select
-                className={selectClass}
-                value={languageColumn}
-                onChange={(e) => setLanguageColumn(e.target.value)}
-              >
-                {LANGUAGE_OPTIONS.map((col) => (
-                  <option key={col} value={col}>
-                    {col}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
           <div className="surface-soft space-y-3 p-3">
-            <p className="text-sm font-semibold">New voice from sample</p>
+            <p className="text-sm font-semibold">1. Train voice from sample</p>
             <div className="space-y-2">
               <Label>Name</Label>
               <Input
                 value={newVoiceName}
                 onChange={(e) => setNewVoiceName(e.target.value)}
-                placeholder="e.g. Host Voice"
+                placeholder="e.g. influencer voice"
               />
             </div>
             <div className="space-y-2">
-              <Label>Sample file</Label>
+              <Label>Sample (mp3 / wav / m4a)</Label>
               <Input
                 type="file"
                 accept="audio/*,.mp3,.wav,.m4a,.webm"
@@ -343,19 +340,54 @@ export function VoiceClonePanel({ connected, outputConfigured }: VoiceClonePanel
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Save audio files to</Label>
-            <Input
-              value={outputDir}
-              onChange={(e) => setOutputDir(e.target.value)}
-              placeholder="C:\Voices\output"
-            />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>2. Use this voice</Label>
+              <select
+                className={selectClass}
+                value={selectedVoice}
+                onChange={(e) => setSelectedVoice(e.target.value)}
+              >
+                <option value="">Choose a voice…</option>
+                {voices.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                    {v.sample_filename ? ` · ${v.sample_filename}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Language column</Label>
+              <select
+                className={selectClass}
+                value={languageColumn}
+                onChange={(e) => setLanguageColumn(e.target.value)}
+              >
+                {LANGUAGE_OPTIONS.map((col) => (
+                  <option key={col} value={col}>
+                    {col}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          <details className="rounded-xl border border-border px-3 py-2 text-sm">
+            <summary className="cursor-pointer font-semibold">Output folder</summary>
+            <div className="mt-2 space-y-2">
+              <Input
+                value={outputDir}
+                onChange={(e) => setOutputDir(e.target.value)}
+                placeholder="./data/voices_output"
+              />
+            </div>
+          </details>
 
           <div className="flex flex-wrap gap-2">
             <Button onClick={handleSynthesize} disabled={synthesizing || !elevenlabs} size="lg">
               {synthesizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
-              Clone selected
+              Speak selected text
             </Button>
             <Button variant="secondary" onClick={handleMarkDone}>
               <CheckCircle2 className="h-4 w-4" />
@@ -379,9 +411,46 @@ export function VoiceClonePanel({ connected, outputConfigured }: VoiceClonePanel
 
           {synthesizing && <ProgressBar value={progress} stepLabel={statusStep} />}
           {result && !synthesizing && (
-            <p className="text-xs text-muted-foreground">
-              Last run: {result.processed} ok · {result.failed} failed · {result.output_dir}
-            </p>
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Last run: {result.processed} ok · {result.failed} failed · {result.output_dir}
+              </p>
+              {(result.filenames?.length || result.files?.length) ? (
+                <div className="space-y-1.5 rounded-xl border border-border p-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                    Download when ready (not auto-saved to browser)
+                  </p>
+                  {(result.filenames?.length
+                    ? result.filenames
+                    : result.files.map((f) => f.split(/[/\\]/).pop() || f)
+                  ).map((name) => (
+                    <div key={name} className="flex items-center justify-between gap-2">
+                      <span className="truncate text-xs font-medium">{name}</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={async () => {
+                          try {
+                            await saveMp3ToDisk(name);
+                            toast({ title: "Downloaded", description: name });
+                          } catch (err) {
+                            toast({
+                              title: "Download failed",
+                              description: err instanceof Error ? err.message : "Unknown error",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        Download
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           )}
         </div>
 
