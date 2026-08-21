@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import zipfile
 from pathlib import Path
 from typing import Optional
@@ -213,18 +214,41 @@ def ffmpeg_dir_for_ytdlp() -> str:
     return str(ffmpeg.parent)
 
 
+def _voice_samples_dir() -> Path:
+    """Short, stable folder for voice-sample downloads (avoids Windows MAX_PATH issues)."""
+    try:
+        from app.config import get_settings
+
+        base = Path(get_settings().data_dir)
+    except Exception:
+        base = _BACKEND_DIR / "data"
+    dest = base / "voice_samples"
+    dest.mkdir(parents=True, exist_ok=True)
+    return dest
+
+
+def _safe_filename_stem(title: str, fallback: str = "voice-sample") -> str:
+    stem = re.sub(r"[^\w\s\-]", "", title, flags=re.UNICODE).strip()
+    stem = re.sub(r"\s+", "-", stem)[:60]
+    return stem or fallback
+
+
 def download_url_as_mp3(url: str, out_dir: Optional[Path] = None) -> Path:
     """Download a video URL as an MP3 file (for voice samples)."""
     ensure_media_bins()
     import yt_dlp
 
-    dest = Path(out_dir) if out_dir else tools_dir() / "voice_samples"
+    dest = Path(out_dir) if out_dir else _voice_samples_dir()
     dest.mkdir(parents=True, exist_ok=True)
-    outtmpl = str(dest / "%(title).80B [%(id)s].%(ext)s")
+
+    # Temp dir keeps paths short on Windows; use video id (not title) for filenames.
+    tmp_dir = Path(tempfile.mkdtemp(prefix="vts_dl_", dir=str(dest)))
+    outtmpl = str(tmp_dir / "%(id)s.%(ext)s")
 
     ydl_opts = {
         "quiet": False,
         "no_warnings": True,
+        "restrictfilenames": True,
         "format": "bestaudio/best",
         "outtmpl": outtmpl,
         "ffmpeg_location": ffmpeg_dir_for_ytdlp(),
@@ -236,17 +260,25 @@ def download_url_as_mp3(url: str, out_dir: Optional[Path] = None) -> Path:
             }
         ],
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
-        requested = ydl.prepare_filename(info)
-    # After extract, extension becomes .mp3
-    mp3 = Path(requested).with_suffix(".mp3")
-    if mp3.is_file():
-        return mp3
-    matches = sorted(dest.glob("*.mp3"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if matches:
-        return matches[0]
-    raise RuntimeError(f"MP3 was not created for {url}")
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            video_id = (info.get("id") if isinstance(info, dict) else None) or "audio"
+            requested = ydl.prepare_filename(info)
+        mp3 = Path(requested).with_suffix(".mp3")
+        if not mp3.is_file():
+            matches = sorted(tmp_dir.glob("*.mp3"), key=lambda p: p.stat().st_mtime, reverse=True)
+            if not matches:
+                raise RuntimeError(f"MP3 was not created for {url}")
+            mp3 = matches[0]
+
+        final = dest / f"{video_id}.mp3"
+        if final.exists():
+            final.unlink()
+        shutil.move(str(mp3), str(final))
+        return final
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 def prepare_voice_sample_from_url(
@@ -265,20 +297,20 @@ def prepare_voice_sample_from_url(
     import yt_dlp
 
     ensure_media_bins()
-    dest = Path(out_dir) if out_dir else tools_dir() / "voice_samples"
+    dest = Path(out_dir) if out_dir else _voice_samples_dir()
     dest.mkdir(parents=True, exist_ok=True)
 
     # Metadata first (title) then download
     with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "skip_download": True}) as ydl:
         info = ydl.extract_info(url, download=False)
     title = (info.get("title") or info.get("id") or "voice-sample") if isinstance(info, dict) else "voice-sample"
+    video_id = (info.get("id") if isinstance(info, dict) else None) or "voice-sample"
 
     full = download_url_as_mp3(url, dest)
     start = max(0.0, float(start_sec or 0.0))
     duration = max(5.0, min(90.0, float(duration_sec or 30.0)))
 
-    safe_stem = re.sub(r"[^\w\s\-]", "", title, flags=re.UNICODE).strip()
-    safe_stem = re.sub(r"\s+", "-", safe_stem)[:60] or "voice-sample"
+    safe_stem = _safe_filename_stem(title, fallback=video_id)
     sample = dest / f"{safe_stem}-sample-{int(start)}s-{int(duration)}s.mp3"
 
     ffmpeg = ensure_ffmpeg()

@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -58,6 +59,13 @@ class Settings(BaseSettings):
     elevenlabs_model_id: str = "eleven_multilingual_v2"
     # Deprecated — kept so old .env files don't break
     output_doc_title: str = "Video Transcripts"
+
+    @field_validator("frontend_url", mode="before")
+    @classmethod
+    def normalize_frontend_url(cls, value: str) -> str:
+        if isinstance(value, str):
+            return value.rstrip("/")
+        return value
 
 
 @lru_cache
