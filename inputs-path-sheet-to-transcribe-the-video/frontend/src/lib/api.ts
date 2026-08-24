@@ -338,6 +338,19 @@ export const api = {
         views_per_day?: number | null;
       }[];
     }>("/api/studio/shorts", { method: "POST", body: JSON.stringify(body) }, 300000),
+
+  editAutoPack: (body: {
+    script: string;
+    title?: string;
+    voice_mp3_filename?: string;
+    generate_images?: boolean;
+    build_video?: boolean;
+  }) =>
+    apiFetch<{ job_id: string }>(
+      "/api/edit/auto-pack",
+      { method: "POST", body: JSON.stringify(body) },
+      60000
+    ),
 };
 
 export function waitForJob(
@@ -361,7 +374,16 @@ export function waitForJob(
 
         if (status.status === "completed") {
           const full = await api.jobStatus(jobId, true);
-          return { ...full, result: full.result ?? (await api.jobResult(jobId)) };
+          if (full.result != null) {
+            return full;
+          }
+          // Transcribe jobs historically used /result; other jobs only expose status.result
+          try {
+            const legacy = await api.jobResult(jobId);
+            return { ...full, result: legacy };
+          } catch {
+            return full;
+          }
         }
         if (status.status === "failed") {
           throw new Error(status.error || "Transcription failed");

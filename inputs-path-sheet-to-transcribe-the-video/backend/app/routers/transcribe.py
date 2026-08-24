@@ -161,14 +161,23 @@ def job_status(job_id: str, include_result: bool = True):
     return JobStatusResponse(**job_manager.to_response(job_id, include_result=include_result))
 
 
-@router.get("/jobs/{job_id}/result", response_model=TranscribeResponse)
+@router.get("/jobs/{job_id}/result")
 def job_result(job_id: str):
+    """Return completed job payload.
+
+    Transcription jobs return TranscribeResponse-shaped data.
+    Voice / edit jobs return their own result dict.
+    """
     job = job_manager.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status != "completed" or not job.result:
-        raise HTTPException(status_code=409, detail="Transcription result not ready yet")
-    return TranscribeResponse(**job.result)
+        raise HTTPException(status_code=409, detail="Job result not ready yet")
+    result = job.result
+    # Prefer typed transcript response when shape matches
+    if isinstance(result, dict) and "transcript" in result and "segments" in result:
+        return TranscribeResponse(**result)
+    return result
 
 
 @router.post("/upload", response_model=UploadResponse)

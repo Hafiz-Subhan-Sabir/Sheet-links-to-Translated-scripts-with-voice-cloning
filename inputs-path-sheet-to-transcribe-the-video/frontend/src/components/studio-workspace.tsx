@@ -2,13 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ProgressBar } from "@/components/progress-bar";
 import { toast } from "@/hooks/use-toast";
-import { api } from "@/lib/api";
+import { api, waitForJob } from "@/lib/api";
+import { normalizeProgress } from "@/lib/progress";
 import type { WorkflowId } from "@/components/mode-chooser";
-import { Check, Copy, Loader2 } from "lucide-react";
+import type { AutoEditPackResult, JobStatusResponse } from "@/lib/types";
+import { Check, Clapperboard, Copy, Download, Film, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface StudioWorkspaceProps {
   mode: Extract<WorkflowId, "original" | "viral" | "shorts">;
@@ -31,6 +35,27 @@ function extractScript(markdown: string): string {
   return next.replace(/^```[\w]*\n?/, "").replace(/\n?```$/, "").trim() || markdown;
 }
 
+function editDownloadUrl(filename: string, inline = false) {
+  const base = `${API_URL}/api/edit/download/${encodeURIComponent(filename)}`;
+  return inline ? `${base}?inline=1` : base;
+}
+
+async function saveEditFile(filename: string) {
+  const res = await fetch(editDownloadUrl(filename, false));
+  if (!res.ok) {
+    throw new Error(res.status === 404 ? "File not found" : `Download failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 export function StudioWorkspace({ mode, onBack }: StudioWorkspaceProps) {
   const [idea, setIdea] = useState("");
   const [format, setFormat] = useState<"long" | "short">("long");
@@ -38,6 +63,10 @@ export function StudioWorkspace({ mode, onBack }: StudioWorkspaceProps) {
   const [loading, setLoading] = useState(false);
   const [markdown, setMarkdown] = useState("");
   const [copied, setCopied] = useState(false);
+  const [buildingEdit, setBuildingEdit] = useState(false);
+  const [editProgress, setEditProgress] = useState(0);
+  const [editStep, setEditStep] = useState("");
+  const [editPack, setEditPack] = useState<AutoEditPackResult | null>(null);
   const [videos, setVideos] = useState<
     { title: string; view_count: number; url: string; channel?: string; views_per_day?: number | null }[]
   >([]);
@@ -69,6 +98,7 @@ export function StudioWorkspace({ mode, onBack }: StudioWorkspaceProps) {
     setMarkdown("");
     setVideos([]);
     setCopied(false);
+    setEditPack(null);
     try {
       if (mode === "original") {
         if (!idea.trim()) {
@@ -117,6 +147,52 @@ export function StudioWorkspace({ mode, onBack }: StudioWorkspaceProps) {
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       toast({ title: "Copy failed", variant: "destructive" });
+    }
+  };
+
+  const buildEditPack = async () => {
+    const script = extractScript(markdown);
+    if (script.trim().length < 20) {
+      toast({ title: "Script too short for visuals", variant: "destructive" });
+      return;
+    }
+    setBuildingEdit(true);
+    setEditProgress(0);
+    setEditStep("Starting…");
+    setEditPack(null);
+    try {
+      const start = await api.editAutoPack({
+        script,
+        title: mode === "shorts" ? "shorts-edit" : "studio-edit",
+        generate_images: true,
+        build_video: true,
+      });
+      const finalStatus = await waitForJob(
+        start.job_id,
+        (status: JobStatusResponse) => {
+          setEditStep(status.step || "Building visuals…");
+          setEditProgress(normalizeProgress(status.progress));
+        },
+        2000,
+        45 * 60 * 1000
+      );
+      const result = (finalStatus.result || {}) as AutoEditPackResult;
+      if (!result.zip_filename) {
+        throw new Error("Edit pack finished but zip was missing");
+      }
+      setEditPack(result);
+      toast({
+        title: "Visual edit pack ready",
+        description: `${result.beat_count} beats · zip + rough cut downloaded from Speak/Studio.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Visual edit failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setBuildingEdit(false);
     }
   };
 
@@ -219,7 +295,47 @@ export function StudioWorkspace({ mode, onBack }: StudioWorkspaceProps) {
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               {copied ? "Copied" : "Copy SCRIPT"}
             </Button>
+            <Button type="button" onClick={buildEditPack} disabled={buildingEdit}>
+              {buildingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clapperboard className="h-4 w-4" />}
+              Suggest visuals &amp; edit pack
+            </Button>
           </div>
+          {buildingEdit && <ProgressBar value={editProgress} stepLabel={editStep} />}
+          {editPack && (
+            <div className="surface-soft space-y-3 p-4">
+              <p className="text-sm font-semibold">{editPack.beat_count} timed visual beats</p>
+              <p className="text-xs text-muted-foreground">{editPack.capcut_note}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void saveEditFile(editPack.zip_filename)}
+                >
+                  <Download className="h-4 w-4" />
+                  Download edit pack (.zip)
+                </Button>
+                {editPack.mp4_filename && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void saveEditFile(editPack.mp4_filename!)}
+                  >
+                    <Film className="h-4 w-4" />
+                    Download rough MP4
+                  </Button>
+                )}
+              </div>
+              {editPack.mp4_filename && (
+                <video
+                  controls
+                  className="w-full rounded-xl border border-border"
+                  src={editDownloadUrl(editPack.mp4_filename, true)}
+                  preload="metadata"
+                />
+              )}
+            </div>
+          )}
           <article className="surface-soft whitespace-pre-wrap p-4 text-sm leading-relaxed">
             {markdown}
           </article>

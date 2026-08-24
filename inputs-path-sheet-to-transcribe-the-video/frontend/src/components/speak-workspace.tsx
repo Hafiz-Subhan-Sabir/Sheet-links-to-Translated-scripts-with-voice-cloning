@@ -8,8 +8,8 @@ import { ProgressBar } from "@/components/progress-bar";
 import { toast } from "@/hooks/use-toast";
 import { api, waitForJob } from "@/lib/api";
 import { normalizeProgress } from "@/lib/progress";
-import type { JobStatusResponse, VoiceInfo } from "@/lib/types";
-import { Download, Loader2, Mic, Square, Upload, Volume2 } from "lucide-react";
+import type { AutoEditPackResult, JobStatusResponse, VoiceInfo } from "@/lib/types";
+import { Clapperboard, Download, Film, Loader2, Mic, Square, Upload, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const selectClass = cn(
@@ -28,8 +28,29 @@ function downloadUrlFor(filename: string, inline = false) {
   return inline ? `${base}?inline=1` : base;
 }
 
+function editDownloadUrl(filename: string, inline = false) {
+  const base = `${API_URL}/api/edit/download/${encodeURIComponent(filename)}`;
+  return inline ? `${base}?inline=1` : base;
+}
+
 async function saveMp3ToDisk(filename: string) {
   const res = await fetch(downloadUrlFor(filename, false));
+  if (!res.ok) {
+    throw new Error(res.status === 404 ? "File not found" : `Download failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
+async function saveEditFile(filename: string) {
+  const res = await fetch(editDownloadUrl(filename, false));
   if (!res.ok) {
     throw new Error(res.status === 404 ? "File not found" : `Download failed (${res.status})`);
   }
@@ -66,6 +87,10 @@ export function SpeakWorkspace({ onBack }: SpeakWorkspaceProps) {
   const [statusStep, setStatusStep] = useState("");
   const [resultFilename, setResultFilename] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [buildingEdit, setBuildingEdit] = useState(false);
+  const [editProgress, setEditProgress] = useState(0);
+  const [editStep, setEditStep] = useState("");
+  const [editPack, setEditPack] = useState<AutoEditPackResult | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
@@ -219,6 +244,7 @@ export function SpeakWorkspace({ onBack }: SpeakWorkspaceProps) {
     setStatusStep("Starting…");
     setResultFilename(null);
     setPreviewUrl(null);
+    setEditPack(null);
     try {
       const start = await api.voiceSpeakText({
         voice_id: selectedVoice,
@@ -275,6 +301,53 @@ export function SpeakWorkspace({ onBack }: SpeakWorkspaceProps) {
       });
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const buildEditPack = async () => {
+    const script = text.trim();
+    if (script.length < 20) {
+      toast({ title: "Need a longer script", variant: "destructive" });
+      return;
+    }
+    setBuildingEdit(true);
+    setEditProgress(0);
+    setEditStep("Starting…");
+    setEditPack(null);
+    try {
+      const start = await api.editAutoPack({
+        script,
+        title: title.trim() || "edit",
+        voice_mp3_filename: resultFilename || undefined,
+        generate_images: true,
+        build_video: true,
+      });
+      const finalStatus = await waitForJob(
+        start.job_id,
+        (status: JobStatusResponse) => {
+          setEditStep(status.step || "Building visuals…");
+          setEditProgress(normalizeProgress(status.progress));
+        },
+        2000,
+        45 * 60 * 1000
+      );
+      const result = (finalStatus.result || {}) as AutoEditPackResult;
+      if (!result.zip_filename) {
+        throw new Error("Edit pack finished but zip was missing");
+      }
+      setEditPack(result);
+      toast({
+        title: "Edit pack ready",
+        description: `${result.beat_count} beats · download the zip or watch the rough cut.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Visual edit failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setBuildingEdit(false);
     }
   };
 
@@ -472,6 +545,69 @@ export function SpeakWorkspace({ onBack }: SpeakWorkspaceProps) {
           )}
         </div>
       )}
+
+      <div className="surface-soft space-y-3 p-4">
+        <p className="text-sm font-semibold">4. Auto visuals + CapCut pack</p>
+        <p className="text-sm text-muted-foreground">
+          Splits your script into ~3–5s beats, suggests AI stills (or free image fallback), builds a
+          rough MP4 with captions, and zips a CapCut import guide. Make the MP3 first for perfect
+          timing — or run on script alone.
+        </p>
+        <Button type="button" size="lg" onClick={buildEditPack} disabled={buildingEdit || text.trim().length < 20}>
+          {buildingEdit ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clapperboard className="h-4 w-4" />}
+          Suggest visuals &amp; build edit pack
+        </Button>
+        {buildingEdit && <ProgressBar value={editProgress} stepLabel={editStep} />}
+
+        {editPack && (
+          <div className="space-y-3 rounded-xl border border-border p-3">
+            <p className="text-sm font-semibold">
+              {editPack.beat_count} timed beats ready
+            </p>
+            <p className="text-xs text-muted-foreground">{editPack.capcut_note}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => void saveEditFile(editPack.zip_filename)}
+              >
+                <Download className="h-4 w-4" />
+                Download edit pack (.zip)
+              </Button>
+              {editPack.mp4_filename && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void saveEditFile(editPack.mp4_filename!)}
+                >
+                  <Film className="h-4 w-4" />
+                  Download rough MP4
+                </Button>
+              )}
+            </div>
+            {editPack.mp4_filename && (
+              <video
+                controls
+                className="w-full rounded-xl border border-border"
+                src={editDownloadUrl(editPack.mp4_filename, true)}
+                preload="metadata"
+              />
+            )}
+            <ul className="max-h-56 space-y-2 overflow-y-auto text-xs">
+              {editPack.beats.slice(0, 24).map((b) => (
+                <li key={b.index} className="rounded-lg bg-[var(--card)] px-2 py-1.5">
+                  <span className="font-bold text-foreground">
+                    {b.index}. {b.start_sec.toFixed(1)}s–{b.end_sec.toFixed(1)}s
+                  </span>{" "}
+                  <span className="text-muted-foreground">· {b.visual_type}</span>
+                  <div className="mt-0.5 text-muted-foreground line-clamp-2">{b.image_prompt}</div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

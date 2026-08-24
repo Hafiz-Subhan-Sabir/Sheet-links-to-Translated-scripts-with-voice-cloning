@@ -150,12 +150,43 @@ export interface VoiceJobResult {
   errors: Array<{ row_index: number; error: string }>;
 }
 
+export interface VisualBeat {
+  index: number;
+  start_sec: number;
+  end_sec: number;
+  duration_sec: number;
+  narration: string;
+  visual_type: string;
+  image_prompt: string;
+  on_screen_text: string;
+  camera_move: string;
+  edit_note: string;
+  image_filename?: string | null;
+}
+
+export interface AutoEditPackResult {
+  title: string;
+  pack_dir: string;
+  zip_filename: string;
+  mp4_filename?: string | null;
+  beat_count: number;
+  has_audio: boolean;
+  beats: VisualBeat[];
+  capcut_note: string;
+}
+
 export interface JobStatusResponse {
   job_id: string;
   status: "pending" | "running" | "completed" | "failed";
   step: string;
   progress: number;
-  result?: TranscribeResponse | AutoPipelineResponse | BatchJobResult | VoiceJobResult | null;
+  result?:
+    | TranscribeResponse
+    | AutoPipelineResponse
+    | BatchJobResult
+    | VoiceJobResult
+    | AutoEditPackResult
+    | null;
   error?: string | null;
 }
 

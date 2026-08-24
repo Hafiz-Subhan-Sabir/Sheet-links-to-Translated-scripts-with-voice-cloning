@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     google_translate_mode: str = "auto"
     whisper_model: str = "medium"
     whisper_engine: str = "auto"  # auto | openai | local
+    # If set (e.g. gpt-image-1), try OpenAI images first; empty = free Pollinations
+    openai_image_model: str = ""
     whisper_cpu_threads: int = 0
     whisper_num_workers: int = 0
     translate_workers: int = 8
