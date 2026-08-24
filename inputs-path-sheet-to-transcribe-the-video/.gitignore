@@ -23,12 +23,8 @@ next-env.d.ts
 backend/.env
 frontend/.env.local
 
-# Runtime data & uploads
-backend/data/tokens.enc
-backend/data/oauth_pending.json
-backend/data/config.json
-backend/data/uploads/
-backend/data/jobs.json
+# Runtime data & uploads (local only — never push)
+backend/data/
 
 # Large binaries / auto-downloaded media tools
 backend/tools/
