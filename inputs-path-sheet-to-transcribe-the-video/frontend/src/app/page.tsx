@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminSection } from "@/components/admin-section";
 import { BatchWorkspace } from "@/components/batch-workspace";
 import { ModeChooser, type WorkflowId } from "@/components/mode-chooser";
+import { ProspectWorkspace } from "@/components/prospect-workspace";
+import { SalesWorkspace } from "@/components/sales-workspace";
 import { SpeakWorkspace } from "@/components/speak-workspace";
 import { StudioWorkspace } from "@/components/studio-workspace";
 import { VoiceClonePanel } from "@/components/voice-clone-panel";
@@ -12,9 +14,9 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { ArrowRight, Clapperboard, Home, Mic2, Sparkles, Zap } from "lucide-react";
+import { ArrowRight, Clapperboard, Home, MessageCircle, Mic2, Search, Sparkles, Zap } from "lucide-react";
 
-type TabId = "setup" | "home" | "transcribe" | "studio" | "speak" | "voice";
+type TabId = "setup" | "home" | "transcribe" | "studio" | "speak" | "sales" | "prospect" | "voice";
 
 const TABS: { id: TabId; label: string }[] = [
   { id: "setup", label: "Setup" },
@@ -22,6 +24,8 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "transcribe", label: "Run" },
   { id: "studio", label: "Studio" },
   { id: "speak", label: "Speak" },
+  { id: "sales", label: "Sales" },
+  { id: "prospect", label: "Prospect" },
   { id: "voice", label: "Voice" },
 ];
 
@@ -87,6 +91,8 @@ export default function Dashboard() {
     if (id === "voice" && !canVoice) return;
     if (id === "studio" && !connected) return;
     if (id === "speak" && !connected) return;
+    if (id === "sales" && !connected) return;
+    if (id === "prospect" && !connected) return;
     setUserPickedTab(true);
     setTab(id);
   };
@@ -96,6 +102,8 @@ export default function Dashboard() {
     setUserPickedTab(true);
     if (id === "transcribe") setTab("transcribe");
     else if (id === "speak") setTab("speak");
+    else if (id === "sales") setTab("sales");
+    else if (id === "prospect") setTab("prospect");
     else setTab("studio");
   };
 
@@ -172,7 +180,9 @@ export default function Dashboard() {
     (id === "transcribe" && !canTranscribe) ||
     (id === "voice" && !canVoice) ||
     (id === "studio" && !connected) ||
-    (id === "speak" && !connected);
+    (id === "speak" && !connected) ||
+    (id === "sales" && !connected) ||
+    (id === "prospect" && !connected);
 
   return (
     <div className="app-viewport">
@@ -204,6 +214,8 @@ export default function Dashboard() {
                 {t.id === "transcribe" && <Clapperboard className="h-3.5 w-3.5" />}
                 {t.id === "studio" && <Sparkles className="h-3.5 w-3.5" />}
                 {t.id === "speak" && <Mic2 className="h-3.5 w-3.5" />}
+                {t.id === "sales" && <MessageCircle className="h-3.5 w-3.5" />}
+                {t.id === "prospect" && <Search className="h-3.5 w-3.5" />}
                 {t.id === "voice" && <Mic2 className="h-3.5 w-3.5" />}
                 {t.label}
               </button>
@@ -334,6 +346,24 @@ export default function Dashboard() {
 
           {tab === "speak" && (
             <SpeakWorkspace
+              onBack={() => {
+                setWorkflow(null);
+                selectTab("home");
+              }}
+            />
+          )}
+
+          {tab === "sales" && (
+            <SalesWorkspace
+              onBack={() => {
+                setWorkflow(null);
+                selectTab("home");
+              }}
+            />
+          )}
+
+          {tab === "prospect" && (
+            <ProspectWorkspace
               onBack={() => {
                 setWorkflow(null);
                 selectTab("home");

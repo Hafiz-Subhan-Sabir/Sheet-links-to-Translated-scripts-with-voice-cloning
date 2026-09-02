@@ -5,14 +5,23 @@ import {
   Clapperboard,
   Film,
   Lightbulb,
+  MessageCircle,
   Mic2,
+  Search,
   TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type WorkflowId = "transcribe" | "original" | "viral" | "shorts" | "speak";
+export type WorkflowId =
+  | "transcribe"
+  | "original"
+  | "viral"
+  | "shorts"
+  | "speak"
+  | "sales"
+  | "prospect";
 
-type ModeAccent = "coral" | "volt" | "cyan" | "magenta" | "amber";
+type ModeAccent = "coral" | "volt" | "cyan" | "magenta" | "amber" | "teal" | "lime";
 
 type Mode = {
   id: WorkflowId;
@@ -82,6 +91,28 @@ const MODES: Mode[] = [
     needsSheets: false,
     accent: "amber",
   },
+  {
+    id: "sales",
+    step: "06",
+    title: "Sales reply coach",
+    plain: "Paste any customer chat or record their voice message. Get a calm, rejection-proof reply.",
+    youGet: "Copy-paste reply + objection handling",
+    time: "~30 sec",
+    icon: MessageCircle,
+    needsSheets: false,
+    accent: "teal",
+  },
+  {
+    id: "prospect",
+    step: "07",
+    title: "Find their biggest problem",
+    plain: "Drop a video, website, Maps link, or describe the business. Get ranked pains and a pitch opener.",
+    youGet: "Problem-first pitch + discovery questions",
+    time: "~1 min",
+    icon: Search,
+    needsSheets: false,
+    accent: "lime",
+  },
 ];
 
 interface ModeChooserProps {
@@ -99,11 +130,11 @@ export function ModeChooser({ sheetsReady, onChoose }: ModeChooserProps) {
           <span className="home-title-accent"> finished.</span>
         </h2>
         <p className="home-sub">
-          Five clear paths. Tap one — we’ll walk you through the rest.
+          Seven clear paths. Tap one — we’ll walk you through the rest.
         </p>
       </header>
 
-      <div className="home-path-grid">
+      <div className="home-path-grid home-path-grid--7">
         {MODES.map((m, i) => {
           const Icon = m.icon;
           const locked = m.needsSheets && !sheetsReady;

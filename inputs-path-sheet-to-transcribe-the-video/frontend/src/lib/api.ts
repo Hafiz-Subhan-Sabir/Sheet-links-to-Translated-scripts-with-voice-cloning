@@ -351,6 +351,60 @@ export const api = {
       { method: "POST", body: JSON.stringify(body) },
       60000
     ),
+
+  salesReply: (body: {
+    message: string;
+    history?: { role: string; content: string }[];
+    context?: string;
+  }) =>
+    apiFetch<{
+      mode: string;
+      input_type: string;
+      customer_message: string;
+      markdown: string;
+    }>("/api/sales/reply", { method: "POST", body: JSON.stringify(body) }, 120000),
+
+  salesReplyVoice: async (body: {
+    file: File;
+    history?: { role: string; content: string }[];
+    context?: string;
+  }) => {
+    const form = new FormData();
+    form.append("voice_note", body.file);
+    form.append("history_json", JSON.stringify(body.history ?? []));
+    form.append("context", body.context ?? "");
+    const res = await fetch(`${API_URL}/api/sales/reply-voice`, {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail));
+    }
+    return res.json() as Promise<{
+      mode: string;
+      input_type: string;
+      customer_message: string;
+      transcript?: string;
+      markdown: string;
+    }>;
+  },
+
+  prospectAnalyze: (body: {
+    video_url?: string;
+    website_url?: string;
+    google_maps_url?: string;
+    app_url?: string;
+    business_description?: string;
+    your_offer?: string;
+  }) =>
+    apiFetch<{
+      mode: string;
+      sources_used: number;
+      fetch_warnings: string[];
+      markdown: string;
+    }>("/api/prospect/analyze", { method: "POST", body: JSON.stringify(body) }, 180000),
 };
 
 export function waitForJob(

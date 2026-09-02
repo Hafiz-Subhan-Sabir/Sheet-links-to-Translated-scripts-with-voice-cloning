@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import admin, auth, batch, detect, edit, studio, transcribe, voice
+from app.routers import admin, auth, batch, detect, edit, prospect, sales, studio, transcribe, voice
 from app.services.transcribe import schedule_whisper_preload
 from app.services.workers import submit_task
 
@@ -58,6 +58,8 @@ app.add_middleware(
 app.include_router(batch.router)
 app.include_router(voice.router)
 app.include_router(studio.router)
+app.include_router(sales.router)
+app.include_router(prospect.router)
 app.include_router(edit.router)
 app.include_router(detect.router)
 app.include_router(transcribe.router)

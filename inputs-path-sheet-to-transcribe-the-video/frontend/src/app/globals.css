@@ -34,6 +34,8 @@
   --neon-cyan: #2de2ff;
   --neon-magenta: #ff2bd6;
   --neon-amber: #ffb020;
+  --neon-teal: #2dd4bf;
+  --neon-lime: #a3e635;
 }
 
 html.light {
@@ -66,6 +68,8 @@ html.light {
   --neon-cyan: #0891b2;
   --neon-magenta: #db2777;
   --neon-amber: #d97706;
+  --neon-teal: #0d9488;
+  --neon-lime: #65a30d;
 }
 
 html {
@@ -240,6 +244,8 @@ html.light body {
   .rail-btn[data-tab="transcribe"] { --rail-neon: var(--neon-cyan); --rail-ink: #041018; }
   .rail-btn[data-tab="studio"] { --rail-neon: var(--neon-magenta); --rail-ink: #fff; }
   .rail-btn[data-tab="speak"] { --rail-neon: var(--neon-amber); --rail-ink: #1a0804; }
+  .rail-btn[data-tab="sales"] { --rail-neon: var(--neon-teal); --rail-ink: #041018; }
+  .rail-btn[data-tab="prospect"] { --rail-neon: var(--neon-lime); --rail-ink: #1a0804; }
   .rail-btn[data-tab="voice"] { --rail-neon: #b24dff; --rail-ink: #fff; }
 
   .rail-btn:hover:not(:disabled) {
@@ -474,6 +480,8 @@ html.light body {
   .path-card[data-accent="cyan"] { --path-neon: var(--neon-cyan); --path-cta-ink: #041018; }
   .path-card[data-accent="magenta"] { --path-neon: var(--neon-magenta); --path-cta-ink: #fff; }
   .path-card[data-accent="amber"] { --path-neon: var(--neon-amber); --path-cta-ink: #1a0804; }
+  .path-card[data-accent="teal"] { --path-neon: var(--neon-teal); --path-cta-ink: #041018; }
+  .path-card[data-accent="lime"] { --path-neon: var(--neon-lime); --path-cta-ink: #1a0804; }
 
   .path-card::before {
     content: "";
