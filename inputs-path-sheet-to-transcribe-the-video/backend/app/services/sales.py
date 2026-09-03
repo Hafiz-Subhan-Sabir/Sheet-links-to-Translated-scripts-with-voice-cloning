@@ -114,3 +114,97 @@ Write the best sales reply for this moment.
         "customer_message": message,
         "markdown": markdown,
     }
+
+
+FIRST_MESSAGE_SYSTEM = """
+You are a highly experienced sales professional writing a FIRST outreach message.
+
+Goals:
+- Sound human, warm, and specific — never spammy or template-like
+- Lead with their world / a relevant problem, not your product pitch
+- Keep it short enough to send as WhatsApp text OR as a 20–40 second voice note
+- One clear soft CTA (reply, quick call, or confirm interest)
+- Ethical — no fake urgency, fake personalization, or lies
+
+Output Markdown with these exact sections:
+
+## Message (text)
+(The exact first message to send. 3–6 short sentences. Use their name if provided.)
+
+## Voice note script
+(Slightly more spoken / natural version of the same message — ready for TTS / voice message. Same length or a bit shorter. No markdown inside this block.)
+
+## Why this works
+(2–3 bullets)
+
+## Channel tip
+(One line: best way to send — WhatsApp text vs voice note vs email — based on the contact info given)
+""".strip()
+
+
+def generate_first_message(
+    *,
+    contact_name: str = "",
+    contact_phone: str = "",
+    contact_email: str = "",
+    company: str = "",
+    role: str = "",
+    notes: str = "",
+    offer: str = "",
+    channel: str = "whatsapp",
+) -> dict[str, Any]:
+    if not any(
+        [
+            (contact_name or "").strip(),
+            (company or "").strip(),
+            (notes or "").strip(),
+            (offer or "").strip(),
+        ]
+    ):
+        raise ValueError(
+            "Add at least a name, company, notes about them, or what you're selling."
+        )
+
+    user_prompt = f"""
+Write a first outreach message for this contact.
+
+Contact name: {contact_name.strip() or "(unknown)"}
+Phone / WhatsApp: {contact_phone.strip() or "(not given)"}
+Email: {contact_email.strip() or "(not given)"}
+Company: {company.strip() or "(not given)"}
+Role / title: {role.strip() or "(not given)"}
+Preferred channel: {channel.strip() or "whatsapp"}
+What we know about them / why we're reaching out:
+{notes.strip() or "(none — keep the opener curiosity-based and light)"}
+
+What we sell / offer:
+{offer.strip() or "(general helpful automation / sales offer — keep light)"}
+
+Make it feel like one real person texting another — not a blast campaign.
+""".strip()
+
+    markdown = llm_complete(FIRST_MESSAGE_SYSTEM, user_prompt, max_tokens=2000, temperature=0.6)
+    text_message = _extract_section(markdown, "Message (text)")
+    voice_script = _extract_section(markdown, "Voice note script") or text_message
+
+    return {
+        "mode": "first_message",
+        "contact_name": contact_name.strip(),
+        "channel": channel.strip() or "whatsapp",
+        "message_text": text_message,
+        "voice_script": voice_script,
+        "markdown": markdown,
+    }
+
+
+def _extract_section(markdown: str, heading: str) -> str:
+    import re
+
+    pattern = rf"##\s*{re.escape(heading)}\s*\n([\s\S]*?)(?=\n##\s+|\Z)"
+    m = re.search(pattern, markdown, re.I)
+    if not m:
+        return ""
+    body = m.group(1).strip()
+    body = re.sub(r"^```[\w]*\n?", "", body)
+    body = re.sub(r"\n?```$", "", body)
+    return body.strip()

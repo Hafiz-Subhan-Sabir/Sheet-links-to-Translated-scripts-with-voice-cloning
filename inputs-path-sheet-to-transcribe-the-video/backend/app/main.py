@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import admin, auth, batch, detect, edit, prospect, sales, sheets, studio, transcribe, voice
+from app.routers import admin, auth, batch, detect, edit, prospect, sales, studio, transcribe, voice
 from app.services.transcribe import schedule_whisper_preload
 from app.services.workers import submit_task
 
@@ -65,7 +65,6 @@ app.include_router(detect.router)
 app.include_router(transcribe.router)
 app.include_router(auth.router)
 app.include_router(admin.router)
-app.include_router(sheets.router)
 
 
 @app.get("/health")

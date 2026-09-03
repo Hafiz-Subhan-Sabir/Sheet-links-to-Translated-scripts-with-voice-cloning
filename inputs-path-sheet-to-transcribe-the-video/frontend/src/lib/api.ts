@@ -137,24 +137,6 @@ export const api = {
 
   adminConfigStatus: () => apiFetch<AdminConfigStatusResponse>("/api/admin/config/status"),
 
-  sheetsSession: () => apiFetch<import("./types").SheetSessionResponse>("/api/sheets/session"),
-
-  sheetsBootstrap: () =>
-    apiFetch<import("./types").SheetSessionResponse>("/api/sheets/bootstrap", { method: "POST" }, 60000),
-
-  sheetsUse: (body: { kind: "input" | "output"; url: string; title?: string }) =>
-    apiFetch<import("./types").SheetSessionResponse>("/api/sheets/use", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-
-  sheetsCreate: (kind: "input" | "output") =>
-    apiFetch<import("./types").SheetSessionResponse>(
-      "/api/sheets/create",
-      { method: "POST", body: JSON.stringify({ kind }) },
-      60000
-    ),
-
   saveAdminConfig: (body: {
     sheet_url: string;
     output_sheet_url?: string;
@@ -381,6 +363,25 @@ export const api = {
       customer_message: string;
       markdown: string;
     }>("/api/sales/reply", { method: "POST", body: JSON.stringify(body) }, 120000),
+
+  salesFirstMessage: (body: {
+    contact_name?: string;
+    contact_phone?: string;
+    contact_email?: string;
+    company?: string;
+    role?: string;
+    notes?: string;
+    offer?: string;
+    channel?: string;
+  }) =>
+    apiFetch<{
+      mode: string;
+      contact_name: string;
+      channel: string;
+      message_text: string;
+      voice_script: string;
+      markdown: string;
+    }>("/api/sales/first-message", { method: "POST", body: JSON.stringify(body) }, 120000),
 
   salesReplyVoice: async (body: {
     file: File;
