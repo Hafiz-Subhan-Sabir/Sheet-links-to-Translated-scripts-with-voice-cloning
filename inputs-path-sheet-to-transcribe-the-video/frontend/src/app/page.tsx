@@ -85,7 +85,7 @@ export default function Dashboard() {
     else setTab("home");
   }, [connected, userPickedTab]);
 
-  const selectTab = (id: TabId) => {
+  const selectTab = useCallback((id: TabId) => {
     if (id === "home" && !canHome) return;
     if (id === "transcribe" && !canTranscribe) return;
     if (id === "voice" && !canVoice) return;
@@ -95,7 +95,7 @@ export default function Dashboard() {
     if (id === "prospect" && !connected) return;
     setUserPickedTab(true);
     setTab(id);
-  };
+  }, [canHome, canTranscribe, canVoice, connected]);
 
   const chooseWorkflow = (id: WorkflowId) => {
     setWorkflow(id);
@@ -173,7 +173,7 @@ export default function Dashboard() {
       cta: null,
       onClick: null,
     };
-  }, [connected, oauthConfigured, sheetsReady, tab]);
+  }, [connected, oauthConfigured, sheetsReady, tab, selectTab]);
 
   const tabLocked = (id: TabId) =>
     (id === "home" && !canHome) ||
