@@ -103,12 +103,10 @@ class QueueRow:
 
 
 def resolve_input_sheet_url() -> Optional[str]:
-    settings = get_settings()
-    env_url = settings.input_sheet_url.strip()
-    if env_url:
-        return env_url
     admin_url = (storage.get_admin_config().get("sheet_url") or "").strip()
-    return admin_url or None
+    if admin_url:
+        return admin_url
+    return get_settings().input_sheet_url.strip() or None
 
 
 def is_input_sheet_configured() -> bool:

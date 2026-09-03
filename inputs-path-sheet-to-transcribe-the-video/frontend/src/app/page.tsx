@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AdminSection } from "@/components/admin-section";
 import { BatchWorkspace } from "@/components/batch-workspace";
 import { ModeChooser, type WorkflowId } from "@/components/mode-chooser";
 import { ProspectWorkspace } from "@/components/prospect-workspace";
 import { SalesWorkspace } from "@/components/sales-workspace";
+import { SheetSetup } from "@/components/sheet-setup";
 import { SpeakWorkspace } from "@/components/speak-workspace";
 import { StudioWorkspace } from "@/components/studio-workspace";
 import { VoiceClonePanel } from "@/components/voice-clone-panel";
@@ -54,7 +54,7 @@ export default function Dashboard() {
       setOauthConfigured(!!status.oauth_configured);
       setSheetConfigured(batchCfg.input_sheet_configured);
       setOutputConfigured(!!batchCfg.output_sheet_configured);
-      setInputSheetUrl(status.sheet_url ?? null);
+      setInputSheetUrl(batchCfg.input_sheet_url ?? status.sheet_url ?? null);
     } catch {
       setConnected(false);
       setOauthConfigured(false);
@@ -65,7 +65,7 @@ export default function Dashboard() {
     refreshAuth();
     const params = new URLSearchParams(window.location.search);
     if (params.get("auth") === "success") {
-      toast({ title: "Google connected", description: "Paste your sheet links — almost there." });
+      toast({ title: "Google connected", description: "We’ll use your recent sheets, or create new ones." });
       window.history.replaceState({}, "", "/");
       refreshAuth();
     } else if (params.get("auth") === "error") {
@@ -130,7 +130,7 @@ export default function Dashboard() {
     if (tab === "setup" && !sheetsReady) {
       return {
         label: "Next step",
-        title: "For sheet transcription: unlock “Your Google Sheets” and paste both links",
+        title: "Sheets load from your recent cache, or we create new ones — then pick a workflow",
         cta: "Choose workflow",
         onClick: () => selectTab("home"),
       };
@@ -253,7 +253,7 @@ export default function Dashboard() {
                   <h2 className="hero-blurb">
                     Sign in once.
                     <br />
-                    Add sheets if you need them.
+                    Sheets restore themselves.
                     <br />
                     <span style={{ color: "var(--coral)" }}>Pick a workflow.</span>
                   </h2>
@@ -266,13 +266,13 @@ export default function Dashboard() {
                       n: "2",
                       ok: sheetConfigured,
                       t: "Video list sheet",
-                      d: "Only needed for sheet transcription",
+                      d: inputSheetUrl || "Auto from last used, or a new sheet",
                     },
                     {
                       n: "3",
                       ok: outputConfigured,
                       t: "Results sheet",
-                      d: "Needed for Run + Voice results",
+                      d: "Auto from last used, or a new sheet",
                     },
                   ].map((s) => (
                     <li key={s.n} className="checklist-item">
@@ -303,11 +303,11 @@ export default function Dashboard() {
                 />
               </section>
 
-              <AdminSection
-                defaultOpen={!sheetsReady}
-                onSaved={() => {
+              <SheetSetup
+                connected={connected}
+                email={email}
+                onReady={() => {
                   refreshAuth();
-                  setUserPickedTab(false);
                 }}
               />
             </div>

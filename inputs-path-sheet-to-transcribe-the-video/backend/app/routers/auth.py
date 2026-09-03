@@ -93,15 +93,18 @@ def google_auth_callback(
 @router.get("/status", response_model=AuthStatusResponse)
 def auth_status():
     from app.services.input_sheet import is_input_sheet_configured, resolve_input_sheet_url
+    from app.services.output_sheet import resolve_output_sheet_url
 
     settings = get_settings()
     email = get_user_email()
     sheet_url = resolve_input_sheet_url() if is_input_sheet_configured() else None
+    output_url = resolve_output_sheet_url()
     return AuthStatusResponse(
         connected=email is not None,
         email=email,
         sheet_ready=is_input_sheet_configured(),
         sheet_url=sheet_url,
+        output_sheet_url=output_url,
         oauth_configured=bool(
             settings.google_client_id.strip() and settings.google_client_secret.strip()
         ),

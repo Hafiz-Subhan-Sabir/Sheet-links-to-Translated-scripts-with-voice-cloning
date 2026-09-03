@@ -60,11 +60,10 @@ def _execute_sheets(request: Any, *, what: str = "Sheets API"):
 
 
 def resolve_output_sheet_url() -> Optional[str]:
-    settings = get_settings()
-    env_url = settings.output_sheet_url.strip()
-    if env_url:
-        return env_url
-    return (storage.get_admin_config().get("output_sheet_url") or "").strip() or None
+    admin_url = (storage.get_admin_config().get("output_sheet_url") or "").strip()
+    if admin_url:
+        return admin_url
+    return get_settings().output_sheet_url.strip() or None
 
 
 def is_output_sheet_configured() -> bool:

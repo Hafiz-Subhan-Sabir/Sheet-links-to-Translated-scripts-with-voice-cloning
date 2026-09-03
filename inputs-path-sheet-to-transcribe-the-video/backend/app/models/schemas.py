@@ -68,6 +68,7 @@ class AuthStatusResponse(BaseModel):
     email: Optional[str] = None
     sheet_ready: bool = False
     sheet_url: Optional[str] = None
+    output_sheet_url: Optional[str] = None
     oauth_configured: bool = False
 
 
@@ -255,6 +256,7 @@ class BatchConfigResponse(BaseModel):
     output_sheet_configured: bool = False
     input_sheet_url_masked: str = ""
     output_sheet_url_masked: str = ""
+    input_sheet_url: Optional[str] = None
     output_sheet_url: Optional[str] = None
     google_connected: bool = False
     batch_workers: int = 3
@@ -345,3 +347,30 @@ class MarkDoneRequest(BaseModel):
 
 class MarkDoneResponse(BaseModel):
     updated: int
+
+
+class SheetHistoryItem(BaseModel):
+    url: str
+    title: str = ""
+    used_at: str = ""
+
+
+class SheetSessionResponse(BaseModel):
+    email: Optional[str] = None
+    input_url: Optional[str] = None
+    output_url: Optional[str] = None
+    input_history: list[SheetHistoryItem] = Field(default_factory=list)
+    output_history: list[SheetHistoryItem] = Field(default_factory=list)
+    created_input: bool = False
+    created_output: bool = False
+
+
+class SheetUseRequest(BaseModel):
+    kind: Literal["input", "output"]
+    url: str
+    title: str = ""
+
+
+class SheetCreateRequest(BaseModel):
+    kind: Literal["input", "output"]
+

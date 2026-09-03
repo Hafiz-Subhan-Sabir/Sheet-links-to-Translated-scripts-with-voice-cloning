@@ -105,6 +105,7 @@ def batch_config():
         output_sheet_configured=is_output_sheet_configured(),
         input_sheet_url_masked="••••••••••" if input_url else "",
         output_sheet_url_masked="••••••••••" if output_url else "",
+        input_sheet_url=input_url,
         output_sheet_url=output_url,
         google_connected=get_credentials() is not None,
         batch_workers=workers,

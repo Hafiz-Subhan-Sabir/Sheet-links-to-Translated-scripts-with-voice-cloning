@@ -1,10 +1,33 @@
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 from app.config import get_settings
 from app.services.encryption import decrypt_value, encrypt_value
+
+_SHEET_HISTORY_LIMIT = 8
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def remember_sheet_history(
+    history: list[dict[str, Any]],
+    url: str,
+    title: str = "",
+    *,
+    limit: int = _SHEET_HISTORY_LIMIT,
+) -> list[dict[str, Any]]:
+    """Move url to the front of recent history; keep unique entries only."""
+    cleaned = (url or "").strip()
+    if not cleaned:
+        return list(history or [])
+    label = (title or "").strip() or cleaned
+    rest = [item for item in (history or []) if (item.get("url") or "").strip() != cleaned]
+    return [{"url": cleaned, "title": label, "used_at": _now_iso()}, *rest][:limit]
 
 
 class Storage:
@@ -105,6 +128,84 @@ class Storage:
         data["output_sheet_url_enc"] = encrypt_value(output_sheet_url, self.secret)
         self._write_json(self.config_path, data)
 
+    def _decrypt_json_blob(self, blob: Optional[str]) -> Optional[dict]:
+        if not blob:
+            return None
+        try:
+            return json.loads(decrypt_value(blob, self.secret))
+        except Exception:
+            return None
+
+    def get_sheet_session(self, email: str) -> dict[str, Any]:
+        """Per-Google-account current sheets + recent URLs."""
+        session = {
+            "input_url": None,
+            "output_url": None,
+            "input_history": [],
+            "output_history": [],
+        }
+        key = (email or "").strip().lower()
+        raw = self._read_json(self.config_path)
+        by_email = raw.get("sheet_sessions_enc") or {}
+        if key and key in by_email:
+            parsed = self._decrypt_json_blob(by_email[key])
+            if isinstance(parsed, dict):
+                session["input_url"] = (parsed.get("input_url") or "").strip() or None
+                session["output_url"] = (parsed.get("output_url") or "").strip() or None
+                session["input_history"] = list(parsed.get("input_history") or [])
+                session["output_history"] = list(parsed.get("output_history") or [])
+
+        # Seed from legacy admin config so existing setups keep working.
+        cfg = self.get_admin_config()
+        if not session["input_url"] and cfg.get("sheet_url"):
+            session["input_url"] = cfg["sheet_url"]
+            session["input_history"] = remember_sheet_history(
+                session["input_history"], cfg["sheet_url"], "Input sheet"
+            )
+        if not session["output_url"] and cfg.get("output_sheet_url"):
+            session["output_url"] = cfg["output_sheet_url"]
+            session["output_history"] = remember_sheet_history(
+                session["output_history"], cfg["output_sheet_url"], "Output sheet"
+            )
+        return session
+
+    def save_sheet_session(self, email: str, session: dict[str, Any]) -> dict[str, Any]:
+        key = (email or "").strip().lower()
+        if not key:
+            raise ValueError("Google email is required to save sheet session")
+        payload = {
+            "input_url": (session.get("input_url") or "").strip() or None,
+            "output_url": (session.get("output_url") or "").strip() or None,
+            "input_history": list(session.get("input_history") or []),
+            "output_history": list(session.get("output_history") or []),
+        }
+        data = self._read_json(self.config_path)
+        by_email = data.get("sheet_sessions_enc") or {}
+        by_email[key] = encrypt_value(json.dumps(payload), self.secret)
+        data["sheet_sessions_enc"] = by_email
+        data["registry_owner_email"] = key
+        if payload["input_url"]:
+            data["sheet_url_enc"] = encrypt_value(payload["input_url"], self.secret)
+        if payload["output_url"]:
+            data["output_sheet_url_enc"] = encrypt_value(payload["output_url"], self.secret)
+        self._write_json(self.config_path, data)
+        return payload
+
+    def remember_sheet(
+        self,
+        email: str,
+        *,
+        kind: str,
+        url: str,
+        title: str = "",
+    ) -> dict[str, Any]:
+        session = self.get_sheet_session(email)
+        field = "input_url" if kind == "input" else "output_url"
+        hist_field = "input_history" if kind == "input" else "output_history"
+        session[field] = url.strip()
+        session[hist_field] = remember_sheet_history(session[hist_field], url, title)
+        return self.save_sheet_session(email, session)
+
     def save_voice_output_dir(self, path: str) -> None:
         data = self._read_json(self.config_path)
         data["voice_output_dir"] = path
@@ -120,10 +221,9 @@ class Storage:
         return bool(cfg.get("sheet_url"))
 
     def is_output_sheet_configured(self) -> bool:
-        settings = get_settings()
-        if settings.output_sheet_url.strip():
+        if self.get_admin_config().get("output_sheet_url"):
             return True
-        return bool(self.get_admin_config().get("output_sheet_url"))
+        return bool(get_settings().output_sheet_url.strip())
 
     def save_google_tokens(self, tokens: dict) -> None:
         encrypted = encrypt_value(json.dumps(tokens), self.secret)

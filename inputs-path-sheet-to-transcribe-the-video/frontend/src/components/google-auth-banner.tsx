@@ -98,7 +98,7 @@ export function GoogleAuthBanner({
             )}
           </p>
         ) : (
-          <p className="mt-1 text-xs text-muted-foreground">Open “Your Google Sheets” to finish setup</p>
+          <p className="mt-1 text-xs text-muted-foreground">Sheets will restore from cache or be created next</p>
         )}
       </div>
       <Button variant="outline" size="sm" onClick={handleDisconnect}>

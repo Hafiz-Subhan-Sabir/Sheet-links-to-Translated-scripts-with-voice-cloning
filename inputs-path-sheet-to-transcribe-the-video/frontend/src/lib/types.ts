@@ -33,6 +33,7 @@ export interface AuthStatusResponse {
   email?: string | null;
   sheet_ready?: boolean;
   sheet_url?: string | null;
+  output_sheet_url?: string | null;
   oauth_configured?: boolean;
 }
 
@@ -79,6 +80,7 @@ export interface BatchConfigResponse {
   output_sheet_configured?: boolean;
   input_sheet_url_masked: string;
   output_sheet_url_masked?: string;
+  input_sheet_url?: string | null;
   output_sheet_url?: string | null;
   google_connected: boolean;
   batch_workers?: number;
@@ -218,4 +220,22 @@ export interface AutoPipelineResponse {
   sheet_logged: boolean;
   sheet_warning?: string | null;
   duration: number;
+}
+
+export type SheetKind = "input" | "output";
+
+export interface SheetHistoryItem {
+  url: string;
+  title?: string;
+  used_at?: string;
+}
+
+export interface SheetSessionResponse {
+  email?: string | null;
+  input_url?: string | null;
+  output_url?: string | null;
+  input_history: SheetHistoryItem[];
+  output_history: SheetHistoryItem[];
+  created_input?: boolean;
+  created_output?: boolean;
 }

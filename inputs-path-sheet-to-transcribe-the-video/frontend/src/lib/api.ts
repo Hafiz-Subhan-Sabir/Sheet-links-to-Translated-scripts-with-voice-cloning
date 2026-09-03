@@ -137,6 +137,24 @@ export const api = {
 
   adminConfigStatus: () => apiFetch<AdminConfigStatusResponse>("/api/admin/config/status"),
 
+  sheetsSession: () => apiFetch<import("./types").SheetSessionResponse>("/api/sheets/session"),
+
+  sheetsBootstrap: () =>
+    apiFetch<import("./types").SheetSessionResponse>("/api/sheets/bootstrap", { method: "POST" }, 60000),
+
+  sheetsUse: (body: { kind: "input" | "output"; url: string; title?: string }) =>
+    apiFetch<import("./types").SheetSessionResponse>("/api/sheets/use", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
+  sheetsCreate: (kind: "input" | "output") =>
+    apiFetch<import("./types").SheetSessionResponse>(
+      "/api/sheets/create",
+      { method: "POST", body: JSON.stringify({ kind }) },
+      60000
+    ),
+
   saveAdminConfig: (body: {
     sheet_url: string;
     output_sheet_url?: string;
